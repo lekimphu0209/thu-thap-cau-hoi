@@ -16,6 +16,7 @@ export const surveyApi = {
   submit: (answers: SurveyAnswers) => api.post<SurveyState>('/survey/me/submit', { answers }),
   listResponses: () => api.get<SurveyOverview>('/admin/surveys'),
   getResponse: (doctorId: number) => api.get<SurveyResponse>(`/admin/surveys/${doctorId}`),
+  deleteResponse: (doctorId: number) => api.delete(`/admin/surveys/${doctorId}`),
   download: async (format: SurveyExportFormat): Promise<void> => {
     const response = await api.get('/admin/surveys/export', {
       params: { format },

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { doctorsApi } from '../api/doctorsApi'
 import AddDoctorForm from '../components/admin/AddDoctorForm'
-import DoctorsTable from '../components/admin/DoctorsTable'
+import DoctorProgressPanel from '../components/admin/DoctorProgressPanel'
 import ExportPanel from '../components/admin/ExportPanel'
 import SubgroupManager from '../components/admin/SubgroupManager'
 import SurveyPanel from '../components/admin/SurveyPanel'
@@ -57,36 +57,8 @@ export default function AdminPage() {
         ) : (
           <>
             <div className="admin-section">
-              <div className="tiles">
-                <div className="tile">
-                  <div className="tile-label">Bác sĩ tham gia</div>
-                  <div className="tile-value tnum">{overview.doctors_total}</div>
-                </div>
-                <div className="tile accent">
-                  <div className="tile-label">Câu đã thu</div>
-                  <div className="tile-value tnum">
-                    {overview.entries_total}
-                    <small>/{overview.entries_target}</small>
-                  </div>
-                </div>
-                <div className="tile">
-                  <div className="tile-label">Hoàn thành</div>
-                  <div className="tile-value tnum">
-                    {overview.completion_pct}
-                    <small>%</small>
-                  </div>
-                </div>
-                <div className="tile">
-                  <div className="tile-label">Bác sĩ đã xong</div>
-                  <div className="tile-value tnum">
-                    {overview.doctors_done}
-                    <small>/{overview.doctors_total}</small>
-                  </div>
-                </div>
-              </div>
-
-              <DoctorsTable
-                doctors={overview.doctors}
+              <DoctorProgressPanel
+                overview={overview}
                 onSelectExport={(doctorId) => {
                   setExportDoctorId(doctorId)
                   document.getElementById('export-panel')?.scrollIntoView({ behavior: 'smooth' })

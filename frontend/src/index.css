@@ -607,6 +607,7 @@ button.citation-preview:hover { border-color: var(--accent); background: var(--a
 .admin-section-subtitle { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; max-width: 72ch; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 28px; }
+.card > .tiles { margin-bottom: 20px; }
 .tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px 22px; box-shadow: var(--shadow-sm); }
 .tile-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
 .tile-value { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; }

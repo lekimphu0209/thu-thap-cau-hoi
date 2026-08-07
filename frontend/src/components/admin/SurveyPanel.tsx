@@ -1,5 +1,5 @@
-import { Download, Eye } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Download, Eye, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { surveyApi, type SurveyExportFormat } from '../../api/surveyApi'
 import { extractErrorMessage } from '../../lib/api'
 import { SURVEY_STATUS_LABEL } from '../../lib/surveyFormat'
@@ -22,14 +22,33 @@ export default function SurveyPanel({ notify }: SurveyPanelProps) {
   const [selected, setSelected] = useState<SurveyResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const loadOverview = useCallback(
+    () => surveyApi.listResponses().then((response) => setOverview(response.data)),
+    [],
+  )
+
   useEffect(() => {
-    Promise.all([surveyApi.listResponses(), surveyApi.getDefinition()])
-      .then(([overviewResponse, definitionResponse]) => {
-        setOverview(overviewResponse.data)
-        setDefinition(definitionResponse.data)
-      })
+    Promise.all([loadOverview(), surveyApi.getDefinition()])
+      .then(([, definitionResponse]) => setDefinition(definitionResponse.data))
       .finally(() => setLoading(false))
-  }, [])
+  }, [loadOverview])
+
+  async function handleDelete(response: SurveyResponse) {
+    if (
+      !window.confirm(
+        `Xoá câu trả lời khảo sát của "${response.full_name}"?\nBác sĩ sẽ phải điền lại khảo sát trong lần đăng nhập kế tiếp.`,
+      )
+    ) {
+      return
+    }
+    try {
+      await surveyApi.deleteResponse(response.doctor_id)
+      await loadOverview()
+      notify('Đã xoá câu trả lời khảo sát.')
+    } catch (error) {
+      notify(extractErrorMessage(error, 'Không thể xoá câu trả lời khảo sát.'))
+    }
+  }
 
   async function handleDownload(format: SurveyExportFormat) {
     try {
@@ -55,7 +74,7 @@ export default function SurveyPanel({ notify }: SurveyPanelProps) {
         </div>
       ) : (
         <>
-          <div className="tiles" style={{ marginBottom: 20 }}>
+          <div className="tiles">
             <div className="tile">
               <div className="tile-label">Tổng bác sĩ</div>
               <div className="tile-value tnum">{overview.doctors_total}</div>
@@ -117,14 +136,25 @@ export default function SurveyPanel({ notify }: SurveyPanelProps) {
                         : '—'}
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs"
-                        disabled={response.status === 'not_started'}
-                        onClick={() => setSelected(response)}
-                      >
-                        <Eye size={13} /> Xem
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs"
+                          disabled={response.status === 'not_started'}
+                          onClick={() => setSelected(response)}
+                        >
+                          <Eye size={13} /> Xem
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-xs"
+                          title="Xoá câu trả lời khảo sát"
+                          disabled={response.status === 'not_started'}
+                          onClick={() => handleDelete(response)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

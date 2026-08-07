@@ -132,6 +132,13 @@ class SurveyService:
             raise NotFoundError(f"Không tìm thấy bác sĩ id={doctor_id}.")
         return self._to_response(doctor)
 
+    async def delete_response(self, doctor_id: int) -> None:
+        survey = await self._find(doctor_id)
+        if survey is None:
+            raise NotFoundError(f"Bác sĩ id={doctor_id} chưa có dữ liệu khảo sát.")
+        await self.db.delete(survey)
+        await self.db.flush()
+
     async def _persist(self, survey: DoctorSurvey) -> None:
         await self.db.flush()
         await self.db.refresh(survey)

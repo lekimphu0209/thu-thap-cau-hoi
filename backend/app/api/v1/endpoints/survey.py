@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, status
 
 from app.api.deps import ActiveUser, AdminUser, DoctorUser, SurveyServiceDep
 from app.core.exceptions import BadRequestError
@@ -83,3 +83,13 @@ async def get_response(
     doctor_id: int, survey_service: SurveyServiceDep, _: AdminUser
 ) -> SurveyResponseOut:
     return await survey_service.get_response(doctor_id)
+
+
+@admin_router.delete(
+    "/{doctor_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete survey response"
+)
+async def delete_response(
+    doctor_id: int, survey_service: SurveyServiceDep, _: AdminUser
+) -> Response:
+    await survey_service.delete_response(doctor_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
