@@ -2,13 +2,15 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
+import SurveyPage from './pages/SurveyPage'
 import WorkspacePage from './pages/WorkspacePage'
 import { AuthProvider, useAuth } from './store/auth'
 
 function RootRedirect() {
   const { user, isAuthenticated } = useAuth()
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />
-  return <Navigate to={user.role === 'admin' ? '/admin' : '/workspace'} replace />
+  if (user.role === 'admin') return <Navigate to="/admin" replace />
+  return <Navigate to={user.survey_completed ? '/workspace' : '/survey'} replace />
 }
 
 export default function App() {
@@ -18,6 +20,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/survey"
+            element={
+              <ProtectedRoute allowedRole="doctor" requiresSurvey={false}>
+                <SurveyPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/workspace"
             element={

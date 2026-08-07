@@ -12,6 +12,7 @@ from app.services.auth_service import AuthService
 from app.services.doctor_service import DoctorService
 from app.services.export_service import ExportService
 from app.services.qa_entry_service import QaEntryService
+from app.services.survey_service import SurveyService
 from app.services.taxonomy_service import TaxonomyService
 
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -42,12 +43,17 @@ def get_admin_overview_service(db: DBSession) -> AdminOverviewService:
     return AdminOverviewService(db)
 
 
+def get_survey_service(db: DBSession) -> SurveyService:
+    return SurveyService(db)
+
+
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 DoctorServiceDep = Annotated[DoctorService, Depends(get_doctor_service)]
 TaxonomyServiceDep = Annotated[TaxonomyService, Depends(get_taxonomy_service)]
 QaEntryServiceDep = Annotated[QaEntryService, Depends(get_qa_entry_service)]
 ExportServiceDep = Annotated[ExportService, Depends(get_export_service)]
 AdminOverviewServiceDep = Annotated[AdminOverviewService, Depends(get_admin_overview_service)]
+SurveyServiceDep = Annotated[SurveyService, Depends(get_survey_service)]
 
 
 async def get_current_user(

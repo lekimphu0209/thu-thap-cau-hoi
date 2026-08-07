@@ -12,6 +12,7 @@ class UserResponse(BaseModel):
     role: str
     specialty: str | None
     is_active: bool
+    survey_completed: bool
     created_at: datetime
 
 

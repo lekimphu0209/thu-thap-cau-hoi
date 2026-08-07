@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Identity, String, func, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -27,6 +27,18 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    survey: Mapped["DoctorSurvey | None"] = relationship(
+        "DoctorSurvey",
+        back_populates="doctor",
+        uselist=False,
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def survey_completed(self) -> bool:
+        return self.survey is not None and self.survey.is_completed
 
     def __repr__(self) -> str:
         return f"<User id={self.user_id} email={self.email!r} role={self.role!r}>"

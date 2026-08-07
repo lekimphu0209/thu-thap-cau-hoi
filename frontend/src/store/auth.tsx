@@ -6,6 +6,7 @@ interface AuthState {
   user: UserResponse | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<UserResponse>
+  refreshUser: () => Promise<UserResponse>
   logout: () => void
 }
 
@@ -28,6 +29,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userData
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    const response = await authApi.me()
+    localStorage.setItem('user', JSON.stringify(response.data))
+    setUser(response.data)
+    return response.data
+  }, [])
+
   const logout = useCallback(() => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
@@ -35,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   )

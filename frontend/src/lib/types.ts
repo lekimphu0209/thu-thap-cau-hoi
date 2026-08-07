@@ -5,6 +5,7 @@ export interface UserResponse {
   role: 'admin' | 'doctor'
   specialty: string | null
   is_active: boolean
+  survey_completed: boolean
   created_at: string
 }
 
@@ -155,6 +156,82 @@ export interface DoctorProgress {
   types_total: number
   status: 'done' | 'in_progress' | 'new'
   minimap: SubgroupMinimapItem[]
+}
+
+export type SurveyControl =
+  | 'radio'
+  | 'select'
+  | 'search_select'
+  | 'checkbox'
+  | 'scale'
+  | 'consent'
+  | 'signature'
+
+export type SurveyAnswerValue = string | string[] | number | boolean | null
+
+export type SurveyAnswers = Record<string, SurveyAnswerValue>
+
+export interface SurveyQuestion {
+  code: string
+  label: string
+  control: SurveyControl
+  options: string[]
+  required: boolean
+  allow_other: boolean
+  help_text: string | null
+  scale_labels: string[]
+}
+
+export interface SurveyConsentBlock {
+  heading: string
+  paragraphs: string[]
+}
+
+export interface SurveySection {
+  code: string
+  title: string
+  description: string
+  consent_blocks: SurveyConsentBlock[]
+  questions: SurveyQuestion[]
+}
+
+export interface SurveyDefinition {
+  version: string
+  other_value: string
+  other_suffix: string
+  sections: SurveySection[]
+}
+
+export interface SurveyState {
+  status: 'in_progress' | 'completed'
+  version: string
+  answers: SurveyAnswers
+  consent_signature: string | null
+  consent_agreed: boolean
+  completed_at: string | null
+  updated_at: string
+}
+
+export interface SurveyResponse {
+  doctor_id: number
+  full_name: string
+  email: string
+  specialty: string | null
+  status: 'not_started' | 'in_progress' | 'completed'
+  version: string | null
+  answers: SurveyAnswers
+  consent_signature: string | null
+  consent_agreed: boolean
+  completed_at: string | null
+  updated_at: string | null
+}
+
+export interface SurveyOverview {
+  doctors_total: number
+  completed_total: number
+  in_progress_total: number
+  not_started_total: number
+  responses: SurveyResponse[]
 }
 
 export interface AdminOverview {

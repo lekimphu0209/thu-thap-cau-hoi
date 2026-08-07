@@ -18,7 +18,11 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       const user = await login(email, password)
-      navigate(user.role === 'admin' ? '/admin' : '/workspace', { replace: true })
+      if (user.role === 'admin') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate(user.survey_completed ? '/workspace' : '/survey', { replace: true })
+      }
     } catch (err) {
       setError(extractErrorMessage(err, 'Đăng nhập thất bại.'))
     } finally {

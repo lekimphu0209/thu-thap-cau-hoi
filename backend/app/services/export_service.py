@@ -1,12 +1,7 @@
-import csv
-import io
 import json
 from datetime import datetime, timezone
 from typing import Any
 
-from openpyxl import Workbook
-from openpyxl.styles import Font
-from openpyxl.utils import get_column_letter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.models.qa_entry import QaEntry
 from app.models.taxonomy import QuestionSubgroup
 from app.models.user import User
+from app.services.tabular_export import TabularExporter
 
 EXPORT_COLUMNS = [
     "id",
@@ -38,6 +34,12 @@ EXPORT_COLUMNS = [
     "note_for_expert",
     "created_at",
 ]
+
+EXPORTER = TabularExporter(
+    columns=EXPORT_COLUMNS,
+    sheet_title="Golden Dataset",
+    wide_columns=("expert_gold_answer", "must_have_citations", "optional_citations"),
+)
 
 
 class ExportFilters:
@@ -89,35 +91,10 @@ class ExportService:
         return json.dumps(envelope, ensure_ascii=False, indent=2)
 
     def to_csv_text(self, entries: list[QaEntry]) -> str:
-        buffer = io.StringIO()
-        buffer.write("﻿")
-        writer = csv.DictWriter(buffer, fieldnames=EXPORT_COLUMNS)
-        writer.writeheader()
-        for entry in entries:
-            writer.writerow(self._entry_to_row(entry))
-        return buffer.getvalue()
+        return EXPORTER.to_csv([self._entry_to_row(entry) for entry in entries])
 
     def to_xlsx_bytes(self, entries: list[QaEntry]) -> bytes:
-        workbook = Workbook()
-        sheet = workbook.active
-        sheet.title = "Golden Dataset"
-
-        sheet.append(EXPORT_COLUMNS)
-        for cell in sheet[1]:
-            cell.font = Font(bold=True)
-
-        for entry in entries:
-            row = self._entry_to_row(entry)
-            sheet.append([row[column] for column in EXPORT_COLUMNS])
-
-        for index, column in enumerate(EXPORT_COLUMNS, start=1):
-            width = 60 if column in ("expert_gold_answer", "must_have_citations", "optional_citations") else 24
-            sheet.column_dimensions[get_column_letter(index)].width = width
-        sheet.freeze_panes = "A2"
-
-        buffer = io.BytesIO()
-        workbook.save(buffer)
-        return buffer.getvalue()
+        return EXPORTER.to_xlsx([self._entry_to_row(entry) for entry in entries])
 
     def _entry_to_row(self, entry: QaEntry) -> dict[str, str]:
         record = self._entry_to_record(entry)

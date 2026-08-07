@@ -3,6 +3,7 @@ from app.models.corpus import GuidelineChunk, GuidelineDocument
 from app.models.lookup import ExpectedBehaviorOption, ReviewStatusOption
 from app.models.qa_citation import QaCitation, QaCitationPoint
 from app.models.qa_entry import QaEntry
+from app.models.survey import DoctorSurvey
 from app.models.taxonomy import QuestionGroup, QuestionSubgroup, SubgroupExample
 from app.models.user import User
 
@@ -19,4 +20,5 @@ __all__ = [
     "QaEntry",
     "QaCitation",
     "QaCitationPoint",
+    "DoctorSurvey",
 ]

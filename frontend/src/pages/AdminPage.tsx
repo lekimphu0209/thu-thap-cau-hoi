@@ -4,6 +4,7 @@ import AddDoctorForm from '../components/admin/AddDoctorForm'
 import DoctorsTable from '../components/admin/DoctorsTable'
 import ExportPanel from '../components/admin/ExportPanel'
 import SubgroupManager from '../components/admin/SubgroupManager'
+import SurveyPanel from '../components/admin/SurveyPanel'
 import Toast from '../components/Toast'
 import TopBar from '../components/TopBar'
 import { useAdminOverview } from '../hooks/useAdminOverview'
@@ -92,6 +93,10 @@ export default function AdminPage() {
                 }}
                 onDelete={handleDeleteDoctor}
               />
+            </div>
+
+            <div className="admin-section">
+              <SurveyPanel notify={showToast} />
             </div>
 
             <div className="admin-section">
