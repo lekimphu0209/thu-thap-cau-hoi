@@ -53,6 +53,7 @@ class SurveyService:
                             required=question.required,
                             allow_other=question.allow_other,
                             help_text=question.help_text,
+                            placeholder=question.placeholder,
                             scale_labels=list(question.scale_labels),
                         )
                         for question in section.questions

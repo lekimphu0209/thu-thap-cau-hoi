@@ -48,6 +48,7 @@ class DoctorService:
         )
         self.db.add(doctor)
         await self.db.flush()
+        await self.db.refresh(doctor)
         return doctor
 
     async def update_doctor(

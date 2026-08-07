@@ -166,6 +166,7 @@ export type SurveyControl =
   | 'scale'
   | 'consent'
   | 'signature'
+  | 'text'
 
 export type SurveyAnswerValue = string | string[] | number | boolean | null
 
@@ -179,6 +180,7 @@ export interface SurveyQuestion {
   required: boolean
   allow_other: boolean
   help_text: string | null
+  placeholder: string | null
   scale_labels: string[]
 }
 

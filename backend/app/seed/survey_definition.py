@@ -10,6 +10,7 @@ CONTROL_CHECKBOX = "checkbox"
 CONTROL_SCALE = "scale"
 CONTROL_CONSENT = "consent"
 CONTROL_SIGNATURE = "signature"
+CONTROL_TEXT = "text"
 
 SINGLE_CHOICE_CONTROLS = {CONTROL_RADIO, CONTROL_SELECT, CONTROL_SEARCH_SELECT}
 
@@ -23,6 +24,7 @@ class Question:
     required: bool = True
     allow_other: bool = False
     help_text: str | None = None
+    placeholder: str | None = None
     scale_labels: tuple[str, ...] = ()
 
 
@@ -101,10 +103,9 @@ CONSENT_BLOCKS = (
     ConsentBlock(
         heading="7. Sử dụng dữ liệu trong tương lai",
         paragraphs=(
-            "Dữ liệu đã loại bỏ thông tin định danh có thể được sử dụng cho các nghiên cứu tiếp theo về "
-            "đánh giá và cải thiện hệ thống hỗ trợ y tế bằng trí tuệ nhân tạo.",
-            "Bạn có thể tham gia nghiên cứu mà không đồng ý với nội dung này bằng cách không chọn mục "
-            "đồng ý tuỳ chọn ở phần xác nhận bên dưới.",
+            "Dữ liệu bạn cung cấp có thể được sử dụng cho các nghiên cứu tiếp theo về đánh giá và "
+            "cải thiện hệ thống hỗ trợ y tế bằng trí tuệ nhân tạo.",
+            "Các nguyên tắc bảo mật nêu ở mục 5 được áp dụng cho cả các nghiên cứu tiếp theo này.",
         ),
     ),
     ConsentBlock(
@@ -140,10 +141,8 @@ CONSENT_SECTION = Section(
         ),
         Question(
             code="consent_future_use",
-            label="Tôi đồng ý cho phép sử dụng dữ liệu đã ẩn danh trong các nghiên cứu tiếp theo.",
+            label="Tôi đồng ý cho phép sử dụng dữ liệu trong các nghiên cứu tiếp theo.",
             control=CONTROL_CONSENT,
-            required=False,
-            help_text="Mục này là tuỳ chọn. Bạn vẫn có thể tham gia nghiên cứu nếu không chọn.",
         ),
         Question(
             code="consent_signature",
@@ -173,10 +172,10 @@ DEMOGRAPHICS_SECTION = Section(
         ),
         Question(
             code="highest_degree",
-            label="Trình độ chuyên môn cao nhất",
+            label="Trình độ chuyên môn",
             control=CONTROL_SELECT,
             options=(
-                "Bác sĩ (đa khoa / chuyên ngành)",
+                "Bác sĩ (chưa có bằng sau đại học)",
                 "Bác sĩ nội trú",
                 "Bác sĩ chuyên khoa cấp I",
                 "Thạc sĩ y học",
@@ -199,10 +198,13 @@ DEMOGRAPHICS_SECTION = Section(
                 "Bác sĩ (hạng III)",
                 "Bác sĩ chính (hạng II)",
                 "Bác sĩ cao cấp (hạng I)",
+                "Bác sĩ y học dự phòng (hạng III)",
+                "Bác sĩ y học dự phòng chính (hạng II)",
+                "Bác sĩ y học dự phòng cao cấp (hạng I)",
                 "Chưa xếp hạng chức danh nghề nghiệp",
             ),
             allow_other=True,
-            help_text="Theo hệ thống chức danh nghề nghiệp viên chức y tế do Bộ Y tế quy định.",
+            help_text="Theo chức danh nghề nghiệp viên chức y tế của Bộ Y tế (Thông tư 41/2025/TT-BYT).",
         ),
         Question(
             code="management_role",
@@ -261,6 +263,13 @@ DEMOGRAPHICS_SECTION = Section(
             allow_other=True,
         ),
         Question(
+            code="facility_name",
+            label="Nơi công tác",
+            control=CONTROL_TEXT,
+            placeholder="VD: Bệnh viện Bạch Mai",
+            help_text="Ghi tên bệnh viện, phòng khám hoặc đơn vị bạn đang làm việc.",
+        ),
+        Question(
             code="facility_type",
             label="Loại hình cơ sở đang công tác",
             control=CONTROL_SELECT,
@@ -294,7 +303,7 @@ DEMOGRAPHICS_SECTION = Section(
         ),
         Question(
             code="weekly_patient_volume",
-            label="Số lượt người bệnh trực tiếp khám mỗi tuần",
+            label="Số lượt khám bệnh trực tiếp mỗi tuần",
             control=CONTROL_SELECT,
             options=(
                 "Không trực tiếp khám bệnh",
@@ -358,11 +367,8 @@ AI_SECTION = Section(
             control=CONTROL_CHECKBOX,
             options=(
                 "Chưa sử dụng công cụ nào",
-                "Chatbot đa dụng (ChatGPT, Gemini, Claude, Copilot...)",
-                "Công cụ hỗ trợ chẩn đoán hình ảnh",
-                "Phần mềm trí tuệ nhân tạo tích hợp trong bệnh án điện tử",
-                "Công cụ hỗ trợ tra cứu y văn",
-                "Công cụ phiên dịch hoặc ghi chép tự động",
+                "Chatbot (ChatGPT, Claude, Gemini, Grok...)",
+                "Công cụ dịch (Google Dịch...)",
             ),
             allow_other=True,
             help_text="Có thể chọn nhiều mục.",
@@ -487,6 +493,11 @@ class Questionnaire:
         if question.control == CONTROL_SIGNATURE:
             if not isinstance(value, str) or not value.strip():
                 return "Vui lòng nhập họ tên đầy đủ."
+            return None
+
+        if question.control == CONTROL_TEXT:
+            if not isinstance(value, str) or not value.strip():
+                return "Vui lòng nhập thông tin." if question.required else None
             return None
 
         if question.control == CONTROL_SCALE:

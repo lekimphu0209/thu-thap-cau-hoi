@@ -25,6 +25,11 @@ function validateQuestion(
     return typeof value === 'string' && value.trim() ? null : 'Vui lòng nhập họ tên đầy đủ.'
   }
 
+  if (question.control === 'text') {
+    if (typeof value === 'string' && value.trim()) return null
+    return question.required ? 'Vui lòng nhập thông tin.' : null
+  }
+
   if (question.control === 'scale') {
     if (typeof value !== 'number') return question.required ? 'Vui lòng chọn một mức.' : null
     return null

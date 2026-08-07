@@ -46,6 +46,7 @@ export default function QuestionField({
       </div>
       {question.help_text && <div className="survey-question-help">{question.help_text}</div>}
 
+
       {question.control === 'consent' && (
         <button
           type="button"
@@ -57,12 +58,12 @@ export default function QuestionField({
         </button>
       )}
 
-      {question.control === 'signature' && (
+      {(question.control === 'signature' || question.control === 'text') && (
         <input
           type="text"
           className={`form-input${error ? ' has-error' : ''}`}
           value={typeof value === 'string' ? value : ''}
-          placeholder="VD: BS. Nguyễn Văn A"
+          placeholder={question.placeholder ?? 'VD: BS. Nguyễn Văn A'}
           onChange={(event) => onChange(event.target.value)}
         />
       )}

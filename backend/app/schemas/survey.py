@@ -12,6 +12,7 @@ class QuestionOut(BaseModel):
     required: bool
     allow_other: bool
     help_text: str | None
+    placeholder: str | None
     scale_labels: list[str]
 
 
