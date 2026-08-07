@@ -1,5 +1,13 @@
-deployment_guide.md
-golden_dataset.json
-railway_deploy.md
-reference/
-hdsd/
+# Ignore everything by default
+*
+
+# Keep .gitignore itself
+!.gitignore
+
+# Only allow backend
+!backend/
+!backend/**
+
+# Only allow frontend
+!frontend/
+!frontend/**
