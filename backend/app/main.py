@@ -17,7 +17,12 @@ _scheduler: AsyncIOScheduler | None = None
 
 async def _scheduled_sync() -> None:
     async with SessionLocal() as db:
-        await sync_guidelines(db)
+        try:
+            await sync_guidelines(db)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
 
 
 @asynccontextmanager

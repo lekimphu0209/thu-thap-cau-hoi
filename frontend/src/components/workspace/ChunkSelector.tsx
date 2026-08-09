@@ -3,6 +3,8 @@ import { guidelinesApi } from '../../api/guidelinesApi'
 import { extractErrorMessage } from '../../lib/api'
 import type { CitationInput, GuidelineChunk } from '../../lib/types'
 
+const SEARCH_DEBOUNCE_MS = 400
+
 interface ChunkSelectorProps {
   selectedDocId: number | null
   selectedChunks: CitationInput[]
@@ -27,19 +29,24 @@ export default function ChunkSelector({
     let cancelled = false
     setLoading(true)
     setError(null)
-    guidelinesApi
-      .listChunks(selectedDocId, { search })
-      .then((res) => {
-        if (!cancelled) setChunks(res.data)
-      })
-      .catch((err) => {
-        if (!cancelled) setError(extractErrorMessage(err, 'Không tải được danh sách chunk'))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+
+    const timer = window.setTimeout(() => {
+      guidelinesApi
+        .listChunks(selectedDocId, { search })
+        .then((res) => {
+          if (!cancelled) setChunks(res.data)
+        })
+        .catch((err) => {
+          if (!cancelled) setError(extractErrorMessage(err, 'Không tải được danh sách chunk'))
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    }, SEARCH_DEBOUNCE_MS)
+
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [selectedDocId, search])
 

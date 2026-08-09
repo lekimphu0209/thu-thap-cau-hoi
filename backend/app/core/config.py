@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     HOST: str = "0.0.0.0"
-    PORT: int = 8010
+    PORT: int = 8000
 
     DB_HOST: str = "localhost"
     DB_PORT: int = 5437

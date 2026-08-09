@@ -6,8 +6,8 @@ Hệ thống thu thập bộ câu hỏi – câu trả lời chuẩn (golden dat
 
 Web B gồm 3 thành phần chính chạy bằng Docker Compose:
 
-- **Frontend** (`:8080`): React 18 + TypeScript + Vite, phục vụ qua nginx.
-- **Backend** (`:8010`): FastAPI (Python 3.12) + SQLAlchemy async + asyncpg.
+- **Frontend** (`:8090`): React 18 + TypeScript + Vite, phục vụ qua nginx.
+- **Backend** (`:8020`): FastAPI (Python 3.12) + SQLAlchemy async + asyncpg.
 - **PostgreSQL** (`:5438` trên host, `golden_dataset` trong container).
 
 Luồng dữ liệu:
@@ -31,14 +31,27 @@ docker compose up -d --build
 
 | Dịch vụ | URL |
 |---|---|
-| Giao diện | http://localhost:8080 |
-| API | http://localhost:8010/api/v1 |
-| API docs | http://localhost:8010/docs |
+| Giao diện | http://localhost:8090 |
+| API | http://localhost:8020/api/v1 |
+| API docs | http://localhost:8020/docs |
 | PostgreSQL | `localhost:5438` — user/pass/db: `golden` |
 
 Tài khoản admin mặc định: `admin@example.com` / `ChangeMe123!`
 
 Bác sĩ demo: `huy@gmail.com` / `111111`
+
+### Cấu hình Docker qua `.env`
+
+File `.env` đặt ở thư mục gốc, cùng cấp với `docker-compose.yml`. Các cổng host có thể đổi mà không cần sửa Compose:
+
+```env
+PUBLIC_HOST=localhost
+BACKEND_HOST_PORT=8020
+FRONTEND_HOST_PORT=8090
+POSTGRES_HOST_PORT=5438
+```
+
+Ví dụ, nếu `8020` bị chiếm, chỉ cần đổi `BACKEND_HOST_PORT=8021` rồi chạy lại `docker compose up -d --build`. Frontend API URL và CORS sẽ tự cập nhật theo cổng mới.
 
 ## Cấu trúc thư mục
 
@@ -100,10 +113,14 @@ docker exec -w /app dataset-builder-backend python scripts/run_sync_once.py
 
 | Biến | Mô tả | Mặc định |
 |---|---|---|
+| `BACKEND_HOST_PORT` | Cổng host của API Web B | `8020` |
+| `FRONTEND_HOST_PORT` | Cổng host của giao diện Web B | `8090` |
+| `POSTGRES_HOST_PORT` | Cổng host của PostgreSQL Web B | `5438` |
+| `PUBLIC_HOST` | Host dùng trong URL frontend/API | `localhost` |
 | `DB_*` | Kết nối PostgreSQL Web B | `postgres:5432/golden_dataset` |
 | `GUIDELINE_SYNC_DB_*` | Kết nối read-only Web A | `guideline-db:5432/guideline_management` |
 | `GUIDELINE_SYNC_ENABLED` | Bật/tắt sync tự động | `true` |
-| `GUIDELINE_SYNC_INTERVAL_MINUTES` | Chu kỳ sync | `60` |
+| `GUIDELINE_SYNC_INTERVAL_MINUTES` | Chu kỳ sync tính bằng phút | `60` (file `.env` hiện tại: `2`) |
 | `JWT_SECRET_KEY` | Khóa ký JWT (đổi khi deploy) | `change-this-secret` |
 | `AUTO_CREATE_TABLES` | Tự tạo bảng khi khởi động | `true` |
 | `SEED_TAXONOMY` | Tự seed taxonomy khi khởi động | `true` |

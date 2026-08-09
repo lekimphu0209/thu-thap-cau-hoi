@@ -13,6 +13,7 @@ const ROLE_OPTIONS = [
 
 const MIN_WORDS = 20
 const MAX_WORDS = 200
+const SEARCH_DEBOUNCE_MS = 400
 const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
 const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
 
@@ -213,9 +214,13 @@ function EntryFormImpl(
   }, [editingEntry, subgroup.subgroup_id])
 
   useEffect(() => {
-    guidelinesApi.listDocuments({ search: docSearch, limit: 50 })
-      .then((res) => setDocuments(res.data))
-      .catch(() => setDocuments([]))
+    const timer = window.setTimeout(() => {
+      guidelinesApi.listDocuments({ search: docSearch, limit: 50 })
+        .then((res) => setDocuments(res.data))
+        .catch(() => setDocuments([]))
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timer)
   }, [docSearch])
 
   useImperativeHandle(ref, () => ({

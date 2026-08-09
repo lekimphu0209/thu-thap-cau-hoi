@@ -10,7 +10,12 @@ from app.sync.guideline_sync import sync_guidelines
 
 async def main() -> None:
     async with SessionLocal() as db:
-        log = await sync_guidelines(db)
+        try:
+            log = await sync_guidelines(db)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
         print(f"Sync log id={log.sync_log_id}")
         print(f"Status: {log.status}")
         print(f"Documents synced: {log.documents_synced}")
