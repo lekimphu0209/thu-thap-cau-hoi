@@ -11,3 +11,13 @@
 # Only allow frontend
 !frontend/
 !frontend/**
+
+# Allow root compose and config
+!docker-compose.yml
+!.env.example
+!README.md
+
+# Ignore virtual environments and build artifacts
+**/venv/
+**/__pycache__/
+*.pyc

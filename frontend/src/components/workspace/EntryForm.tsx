@@ -1,7 +1,8 @@
 import { Check, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import type { CitationDraft, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
-import CitationBuilder from './CitationBuilder'
+import { guidelinesApi } from '../../api/guidelinesApi'
+import type { CitationInput, GuidelineDocument, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
+import ChunkSelector from './ChunkSelector.tsx'
 import KeyPointsBuilder from './KeyPointsBuilder'
 
 const ROLE_OPTIONS = [
@@ -10,25 +11,65 @@ const ROLE_OPTIONS = [
   { value: 'caregiver', label: 'Người chăm sóc' },
 ]
 
+const MIN_WORDS = 20
+const MAX_WORDS = 200
 const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
-const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc: nhập tên tài liệu + vị trí và ít nhất 1 ý'
+const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
+
+interface AnswerField {
+  label: string
+  key: 'evidence' | 'finding' | 'impression' | 'conclusion'
+  hint: string
+  placeholder: string
+}
+
+const ANSWER_FIELDS: AnswerField[] = [
+  {
+    key: 'evidence',
+    label: 'Dữ kiện',
+    hint: 'Các dữ kiện khách quan rút ra từ câu hỏi: triệu chứng, tiền sử, hoàn cảnh của người hỏi.',
+    placeholder: 'VD: Bệnh nhân ho kéo dài >2 tuần, có thể kèm sốt nhẹ, đổ mồ hôi đêm, sụt cân.',
+  },
+  {
+    key: 'finding',
+    label: 'Phát hiện',
+    hint: 'Đối chiếu dữ kiện với guideline đã trích dẫn: thông tin y khoa liên quan tìm được.',
+    placeholder: 'VD: Theo guideline, ho kéo dài >2 tuần kèm sốt và sụt cân là dấu hiệu nghi lao phổi.',
+  },
+  {
+    key: 'impression',
+    label: 'Ấn tượng lâm sàng',
+    hint: 'Nhận định/đánh giá tổng hợp dựa trên dữ kiện và phát hiện ở trên.',
+    placeholder: 'VD: Nghi ngờ lao phổi tiềm ẩn, cần chẩn đoán xác định bằng X-quang và xét nghiệm đờm.',
+  },
+  {
+    key: 'conclusion',
+    label: 'Kết luận',
+    hint: 'Khuyến nghị hành động cụ thể, an toàn dành cho người hỏi.',
+    placeholder: 'VD: Khuyến nghị đi khám bác sĩ để làm thêm chẩn đoán; không tự ý dùng thuốc.',
+  },
+]
 
 interface FormState {
   role: string
   diseaseOrTopic: string
   query: string
   expectedBehavior: string
-  expertGoldAnswer: string
-  requiredKeyPoints: string[]
+  evidence: string
+  finding: string
+  impression: string
+  conclusion: string
+  requiredAnswerPoints: string[]
   safetyNotes: string
   annotatorName: string
   reviewStatus: string
   noteForExpert: string
-  mustHaveCitations: CitationDraft[]
-  optionalCitations: CitationDraft[]
+  selectedDocId: number | null
+  selectedChunks: CitationInput[]
 }
 
-type FormErrors = Partial<Record<'query' | 'diseaseOrTopic' | 'expertGoldAnswer' | 'annotatorName' | 'mustHaveCitations', string>>
+type FormErrorKey = 'query' | 'diseaseOrTopic' | 'annotatorName' | 'citations' | AnswerField['key']
+type FormErrors = Partial<Record<FormErrorKey, string>>
 
 function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], reviewStatuses: LookupOption[]): FormState {
   return {
@@ -36,56 +77,72 @@ function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], rev
     diseaseOrTopic: '',
     query: '',
     expectedBehavior: expectedBehaviors[0]?.value ?? '',
-    expertGoldAnswer: '',
-    requiredKeyPoints: [''],
+    evidence: '',
+    finding: '',
+    impression: '',
+    conclusion: '',
+    requiredAnswerPoints: [''],
     safetyNotes: '',
     annotatorName,
     reviewStatus: reviewStatuses.find((status) => status.value === 'draft')?.value ?? reviewStatuses[0]?.value ?? '',
     noteForExpert: '',
-    mustHaveCitations: [],
-    optionalCitations: [],
+    selectedDocId: null,
+    selectedChunks: [],
   }
 }
 
 function formFromEntry(entry: QaEntry): FormState {
-  const toDraft = (citation: QaEntry['citations'][number]): CitationDraft => ({
-    kind: citation.kind,
+  const toDraft = (citation: QaEntry['citations'][number]): CitationInput => ({
+    citation_type: citation.citation_type,
     chunk_id: citation.chunk_id,
     manual_doc_name: citation.manual_doc_name,
     manual_location: citation.manual_location,
-    points: citation.points.length ? citation.points.map((point) => point.content) : [''],
   })
   return {
     role: entry.role,
     diseaseOrTopic: entry.disease_or_topic,
     query: entry.query,
     expectedBehavior: entry.expected_behavior,
-    expertGoldAnswer: entry.expert_gold_answer,
-    requiredKeyPoints: entry.required_key_points.length ? entry.required_key_points : [''],
+    evidence: entry.evidence,
+    finding: entry.finding,
+    impression: entry.impression,
+    conclusion: entry.conclusion,
+    requiredAnswerPoints: entry.required_answer_points.length
+      ? entry.required_answer_points.map((point) => point.content)
+      : [''],
     safetyNotes: entry.safety_notes ?? '',
     annotatorName: entry.annotator_name,
     reviewStatus: entry.review_status,
     noteForExpert: entry.note_for_expert ?? '',
-    mustHaveCitations: entry.citations.filter((c) => c.kind === 'must_have').map(toDraft),
-    optionalCitations: entry.citations.filter((c) => c.kind === 'optional').map(toDraft),
+    selectedDocId: entry.citations.find((c) => c.chunk_id)?.chunk?.doc_id ?? null,
+    selectedChunks: entry.citations.map(toDraft),
   }
 }
 
-function hasUsableSource(citation: CitationDraft): boolean {
-  return Boolean(citation.manual_doc_name?.trim() && citation.manual_location?.trim())
+function countWords(value: string): number {
+  return (value.trim().match(/\S+/g) || []).length
+}
+
+function validateField(value: string, name: string): string | null {
+  const words = countWords(value)
+  if (words < MIN_WORDS) return `${name} cần ít nhất ${MIN_WORDS} từ (hiện tại ${words})`
+  if (words > MAX_WORDS) return `${name} không được vượt quá ${MAX_WORDS} từ (hiện tại ${words})`
+  return null
 }
 
 function validateForm(form: FormState): FormErrors {
   const errors: FormErrors = {}
   if (!form.query.trim()) errors.query = REQUIRED_FIELD_MESSAGE
   if (!form.diseaseOrTopic.trim()) errors.diseaseOrTopic = REQUIRED_FIELD_MESSAGE
-  if (!form.expertGoldAnswer.trim()) errors.expertGoldAnswer = REQUIRED_FIELD_MESSAGE
   if (!form.annotatorName.trim()) errors.annotatorName = REQUIRED_FIELD_MESSAGE
 
-  const hasValidMustHave = form.mustHaveCitations.some(
-    (citation) => hasUsableSource(citation) && citation.points.some((point) => point.trim()),
-  )
-  if (!hasValidMustHave) errors.mustHaveCitations = REQUIRED_CITATION_MESSAGE
+  for (const field of ANSWER_FIELDS) {
+    const error = validateField(form[field.key], field.label)
+    if (error) errors[field.key] = error
+  }
+
+  const hasRequired = form.selectedChunks.some((c) => c.citation_type === 'REQUIRED')
+  if (!hasRequired) errors.citations = REQUIRED_CITATION_MESSAGE
 
   return errors
 }
@@ -116,6 +173,16 @@ function FieldError({ message }: { message?: string }) {
   return <div className="field-error-text">{message}</div>
 }
 
+function WordCounter({ value }: { value: string }) {
+  const words = countWords(value)
+  const color = words < MIN_WORDS || words > MAX_WORDS ? 'var(--error)' : 'var(--text-muted)'
+  return (
+    <div className="form-hint" style={{ color, textAlign: 'right', marginTop: 4 }}>
+      {words} từ (yêu cầu {MIN_WORDS}–{MAX_WORDS} từ)
+    </div>
+  )
+}
+
 function EntryFormImpl(
   {
     subgroup,
@@ -132,6 +199,8 @@ function EntryFormImpl(
 ) {
   const [form, setForm] = useState<FormState>(() => blankForm(annotatorName, expectedBehaviors, reviewStatuses))
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({})
+  const [documents, setDocuments] = useState<GuidelineDocument[]>([])
+  const [docSearch, setDocSearch] = useState('')
 
   useEffect(() => {
     if (editingEntry) {
@@ -142,6 +211,12 @@ function EntryFormImpl(
     setFieldErrors({})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEntry, subgroup.subgroup_id])
+
+  useEffect(() => {
+    guidelinesApi.listDocuments({ search: docSearch, limit: 50 })
+      .then((res) => setDocuments(res.data))
+      .catch(() => setDocuments([]))
+  }, [docSearch])
 
   useImperativeHandle(ref, () => ({
     fillQuery: (query: string) => setForm((prev) => ({ ...prev, query })),
@@ -164,26 +239,24 @@ function EntryFormImpl(
     }
     setFieldErrors({})
 
-    const stripDraft = (citation: CitationDraft) => ({
-      kind: citation.kind,
-      chunk_id: citation.chunk_id,
-      manual_doc_name: citation.manual_doc_name,
-      manual_location: citation.manual_location,
-      points: citation.points.filter((point) => point.trim().length > 0),
-    })
     const payload: QaEntryUpsertRequest = {
       subgroup_id: subgroup.subgroup_id,
       role: form.role,
       disease_or_topic: form.diseaseOrTopic,
       query: form.query,
       expected_behavior: form.expectedBehavior,
-      expert_gold_answer: form.expertGoldAnswer,
-      required_key_points: form.requiredKeyPoints.filter((point) => point.trim().length > 0),
+      evidence: form.evidence.trim(),
+      finding: form.finding.trim(),
+      impression: form.impression.trim(),
+      conclusion: form.conclusion.trim(),
+      required_answer_points: form.requiredAnswerPoints
+        .filter((point) => point.trim().length > 0)
+        .map((point) => ({ content: point.trim() })),
       safety_notes: form.safetyNotes.trim() || null,
       annotator_name: form.annotatorName,
       review_status: form.reviewStatus,
       note_for_expert: form.noteForExpert.trim() || null,
-      citations: [...form.mustHaveCitations, ...form.optionalCitations].map(stripDraft),
+      citations: form.selectedChunks,
     }
     await onSubmit(payload)
   }
@@ -270,44 +343,80 @@ function EntryFormImpl(
 
         <div className="form-group">
           <label className="form-label">
-            2 · Trích dẫn bắt buộc <RequiredMark />
+            2 · Tài liệu guideline <RequiredMark />
           </label>
-          <CitationBuilder
-            kind="must_have"
-            citations={form.mustHaveCitations}
-            onChange={(citations) => update('mustHaveCitations', citations)}
+          <div className="form-hint" style={{ marginBottom: 8 }}>
+            Chọn tài liệu làm nguồn trích dẫn cho câu trả lời ở phần 3 và 4.
+          </div>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Tìm tài liệu..."
+            value={docSearch}
+            onChange={(event) => setDocSearch(event.target.value)}
+            style={{ marginBottom: 8 }}
           />
-          <FieldError message={fieldErrors.mustHaveCitations} />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Trích dẫn bổ trợ</label>
-          <CitationBuilder
-            kind="optional"
-            citations={form.optionalCitations}
-            onChange={(citations) => update('optionalCitations', citations)}
-          />
+          <select
+            className="form-select"
+            value={form.selectedDocId ?? ''}
+            onChange={(event) =>
+              update('selectedDocId', event.target.value ? Number(event.target.value) : null)
+            }
+          >
+            <option value="">Chọn tài liệu</option>
+            {documents.map((doc) => (
+              <option key={doc.doc_id} value={doc.doc_id}>
+                {doc.title} {doc.version_label ? `(${doc.version_label})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="form-group">
           <label className="form-label">
-            3 · Câu trả lời chuẩn <RequiredMark />
+            3 · Trích dẫn <RequiredMark />
           </label>
-          <textarea
-            className={`form-textarea${fieldErrors.expertGoldAnswer ? ' has-error' : ''}`}
-            rows={4}
-            value={form.expertGoldAnswer}
-            onChange={(event) => update('expertGoldAnswer', event.target.value)}
-            placeholder="Câu trả lời chuẩn, đúng theo guideline, dùng làm mốc để đánh giá câu trả lời của chatbot."
+          <div className="form-hint" style={{ marginBottom: 8 }}>
+            Tick chọn ít nhất 1 đoạn làm trích dẫn <b>Bắt buộc</b> (căn cứ chính cho câu trả lời);
+            các đoạn tham khảo thêm chọn loại <b>Bổ trợ</b>.
+          </div>
+          <ChunkSelector
+            selectedDocId={form.selectedDocId}
+            selectedChunks={form.selectedChunks}
+            onChange={(chunks) => update('selectedChunks', chunks)}
           />
-          <FieldError message={fieldErrors.expertGoldAnswer} />
+          <FieldError message={fieldErrors.citations} />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">
+            4 · Câu trả lời chuẩn <RequiredMark />
+          </label>
+          <div className="form-hint" style={{ marginBottom: 8 }}>
+            Điền đủ 4 phần theo cấu trúc, mỗi phần {MIN_WORDS}–{MAX_WORDS} từ.
+          </div>
+          {ANSWER_FIELDS.map((field) => (
+            <div key={field.key} className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">{field.label}</label>
+              <div className="form-hint" style={{ marginBottom: 4 }}>{field.hint}</div>
+              <textarea
+                className={`form-textarea${fieldErrors[field.key] ? ' has-error' : ''}`}
+                rows={4}
+                value={form[field.key]}
+                onChange={(event) => update(field.key, event.target.value)}
+                placeholder={field.placeholder}
+              />
+              <WordCounter value={form[field.key]} />
+              <FieldError message={fieldErrors[field.key]} />
+            </div>
+          ))}
         </div>
 
         <div className="form-group">
           <label className="form-label">Các ý bắt buộc phải có trong câu trả lời</label>
           <KeyPointsBuilder
-            points={form.requiredKeyPoints}
-            onChange={(points) => update('requiredKeyPoints', points)}
+            points={form.requiredAnswerPoints}
+            onChange={(points) => update('requiredAnswerPoints', points)}
           />
         </div>
 

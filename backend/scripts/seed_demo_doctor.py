@@ -31,12 +31,12 @@ async def get_or_create_doctor(doctor_service: DoctorService) -> User:
 
 
 def build_payload(subgroup_id: int, item: dict) -> QaEntryUpsertRequest:
+    answer = item["expert_gold_answer"]
     citation = CitationIn(
-        kind="must_have",
+        citation_type="REQUIRED",
         chunk_id=None,
         manual_doc_name=item["citation_doc"],
         manual_location=item["citation_loc"],
-        points=item["citation_points"],
     )
     return QaEntryUpsertRequest(
         subgroup_id=subgroup_id,
@@ -44,8 +44,11 @@ def build_payload(subgroup_id: int, item: dict) -> QaEntryUpsertRequest:
         disease_or_topic=item["disease_or_topic"],
         query=item["query"],
         expected_behavior=item["expected_behavior"],
-        expert_gold_answer=item["expert_gold_answer"],
-        required_key_points=item["required_key_points"],
+        evidence=answer,
+        finding=answer,
+        impression=answer,
+        conclusion=answer,
+        required_answer_points=[{"content": point} for point in item["required_key_points"]],
         safety_notes=item["safety_notes"],
         annotator_name=DOCTOR_FULL_NAME,
         review_status="expert_reviewed",

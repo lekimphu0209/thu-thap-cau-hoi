@@ -24,10 +24,13 @@ EXPORT_COLUMNS = [
     "disease_or_topic",
     "query",
     "expected_behavior",
-    "expert_gold_answer",
-    "required_key_points",
-    "must_have_citations",
-    "optional_citations",
+    "evidence",
+    "finding",
+    "impression",
+    "conclusion",
+    "required_answer_points",
+    "required_citations",
+    "supporting_citations",
     "safety_notes",
     "annotator_name",
     "review_status",
@@ -38,7 +41,7 @@ EXPORT_COLUMNS = [
 EXPORTER = TabularExporter(
     columns=EXPORT_COLUMNS,
     sheet_title="Golden Dataset",
-    wide_columns=("expert_gold_answer", "must_have_citations", "optional_citations"),
+    wide_columns=("evidence", "finding", "impression", "conclusion", "required_citations", "supporting_citations"),
 )
 
 
@@ -111,10 +114,13 @@ class ExportService:
             "disease_or_topic": record["disease_or_topic"],
             "query": record["query"],
             "expected_behavior": record["expected_behavior"],
-            "expert_gold_answer": record["expert_gold_answer"],
-            "required_key_points": "; ".join(record["required_key_points"]),
-            "must_have_citations": json.dumps(record["must_have_citations"], ensure_ascii=False),
-            "optional_citations": json.dumps(record["optional_citations"], ensure_ascii=False),
+            "evidence": record["evidence"],
+            "finding": record["finding"],
+            "impression": record["impression"],
+            "conclusion": record["conclusion"],
+            "required_answer_points": "; ".join(record["required_answer_points"]),
+            "required_citations": json.dumps(record["required_citations"], ensure_ascii=False),
+            "supporting_citations": json.dumps(record["supporting_citations"], ensure_ascii=False),
             "safety_notes": record["safety_notes"] or "",
             "annotator_name": record["annotator_name"],
             "review_status": record["review_status"],
@@ -128,16 +134,16 @@ class ExportService:
         subgroup = entry.subgroup
         group = subgroup.group
 
-        must_have = []
-        optional = []
+        required = []
+        supporting = []
         for citation in entry.citations:
             item = {
                 "chunk_id": citation.chunk_id,
                 "doc_title": citation.chunk.doc_title if citation.chunk else citation.manual_doc_name,
-                "location": citation.chunk.location_label if citation.chunk else citation.manual_location,
-                "points": [point.content for point in citation.points],
+                "section_heading": citation.chunk.section_heading if citation.chunk else citation.manual_location,
+                "text_abstract": citation.chunk.text_abstract if citation.chunk else None,
             }
-            (must_have if citation.kind == "must_have" else optional).append(item)
+            (required if citation.citation_type == "REQUIRED" else supporting).append(item)
 
         return {
             "id": str(entry.entry_id),
@@ -152,10 +158,13 @@ class ExportService:
             "disease_or_topic": entry.disease_or_topic,
             "query": entry.query,
             "expected_behavior": entry.expected_behavior,
-            "expert_gold_answer": entry.expert_gold_answer,
-            "required_key_points": entry.required_key_points,
-            "must_have_citations": must_have,
-            "optional_citations": optional,
+            "evidence": entry.evidence,
+            "finding": entry.finding,
+            "impression": entry.impression,
+            "conclusion": entry.conclusion,
+            "required_answer_points": [point.content for point in entry.required_answer_points],
+            "required_citations": required,
+            "supporting_citations": supporting,
             "safety_notes": entry.safety_notes,
             "annotator_name": entry.annotator_name,
             "review_status": entry.review_status,

@@ -1,0 +1,92 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dataset-builder-db
+    environment:
+      POSTGRES_USER: golden
+      POSTGRES_PASSWORD: golden
+      POSTGRES_DB: golden_dataset
+    ports:
+      - "5438:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U golden -d golden_dataset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dataset-builder-backend
+    ports:
+      - "8010:8000"
+    environment:
+      - APP_NAME=Dataset Builder API
+      - APP_ENV=development
+      - DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=golden
+      - DB_PASSWORD=golden
+      - DB_NAME=golden_dataset
+      - DB_POOL_SIZE=10
+      - DB_MAX_OVERFLOW=20
+      - API_V1_PREFIX=/api/v1
+      - ALLOWED_ORIGINS=["http://localhost:8080"]
+      - JWT_SECRET_KEY=change-this-secret
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=480
+      - AUTO_CREATE_TABLES=true
+      - SEED_TAXONOMY=true
+      - DEFAULT_ADMIN_EMAIL=admin@example.com
+      - DEFAULT_ADMIN_PASSWORD=ChangeMe123!
+      - DEFAULT_ADMIN_FULL_NAME=System Admin
+      - GUIDELINE_SYNC_DB_HOST=guideline-db
+      - GUIDELINE_SYNC_DB_PORT=5432
+      - GUIDELINE_SYNC_DB_USER=web_b_readonly
+      - GUIDELINE_SYNC_DB_PASSWORD=${GUIDELINE_SYNC_DB_PASSWORD:-ChangeMe123!}
+      - GUIDELINE_SYNC_DB_NAME=guideline_management
+      - GUIDELINE_SYNC_ENABLED=${GUIDELINE_SYNC_ENABLED:-true}
+      - GUIDELINE_SYNC_INTERVAL_MINUTES=60
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - chatbot-db
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/v1/health\")'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8010/api/v1
+    container_name: dataset-builder-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - default
+
+volumes:
+  pgdata:
+
+networks:
+  chatbot-db:
+    name: chatbot-db
+    external: true

@@ -75,25 +75,34 @@ export interface UpdateSubgroupRequest {
   target_count?: number
 }
 
-export type CitationKind = 'must_have' | 'optional'
+export type CitationType = 'REQUIRED' | 'SUPPORTING'
 
 export interface CitationInput {
-  kind: CitationKind
+  citation_type: CitationType
   chunk_id: number | null
   manual_doc_name: string | null
   manual_location: string | null
-  points: string[]
 }
 
 export type CitationDraft = CitationInput
 
 export interface CitationOutput {
   citation_id: number
-  kind: CitationKind
+  citation_type: CitationType
   chunk_id: number | null
+  chunk: GuidelineChunk | null
   manual_doc_name: string | null
   manual_location: string | null
-  points: { point_id: number; content: string }[]
+}
+
+export interface RequiredAnswerPointInput {
+  content: string
+}
+
+export interface RequiredAnswerPointOutput {
+  answer_point_id: number
+  content: string
+  order_index: number
 }
 
 export interface QaEntryUpsertRequest {
@@ -102,8 +111,11 @@ export interface QaEntryUpsertRequest {
   disease_or_topic: string
   query: string
   expected_behavior: string
-  expert_gold_answer: string
-  required_key_points: string[]
+  evidence: string
+  finding: string
+  impression: string
+  conclusion: string
+  required_answer_points: RequiredAnswerPointInput[]
   safety_notes: string | null
   annotator_name: string
   review_status: string
@@ -121,8 +133,11 @@ export interface QaEntry {
   disease_or_topic: string
   query: string
   expected_behavior: string
-  expert_gold_answer: string
-  required_key_points: string[]
+  evidence: string
+  finding: string
+  impression: string
+  conclusion: string
+  required_answer_points: RequiredAnswerPointOutput[]
   safety_notes: string | null
   annotator_name: string
   review_status: string
@@ -130,6 +145,26 @@ export interface QaEntry {
   created_at: string
   updated_at: string
   citations: CitationOutput[]
+}
+
+export interface GuidelineDocument {
+  doc_id: number
+  title: string
+  ten_benh: string | null
+  chuyen_khoa: string | null
+  publisher: string | null
+  version_label: string | null
+  status: string | null
+  release_date: string | null
+}
+
+export interface GuidelineChunk {
+  chunk_id: number
+  doc_id: number
+  doc_title: string
+  section_heading: string | null
+  text: string
+  text_abstract: string | null
 }
 
 export interface QaEntryCreateResult {

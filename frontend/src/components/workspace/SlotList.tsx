@@ -9,14 +9,30 @@ interface SlotListProps {
   onDelete: (entry: QaEntry) => void
 }
 
-function citationLabel(citation: QaEntry['citations'][number]): string {
-  return `${citation.manual_doc_name ?? '—'} · ${citation.manual_location ?? '—'}`
-}
-
 export default function SlotList({ entries, targetCount, onEdit, onDelete }: SlotListProps) {
   const [openId, setOpenId] = useState<string | null>(null)
   const slotCount = Math.max(targetCount, entries.length)
   const bySlot = new Map(entries.map((entry) => [entry.slot_index, entry]))
+
+  function renderCitations(citations: QaEntry['citations']) {
+    return citations.map((citation) => (
+      <div key={citation.citation_id} style={{ marginBottom: 8 }}>
+        <div style={{ fontWeight: 500, fontSize: 12.5 }}>
+          {citation.chunk?.section_heading || citation.manual_location || '—'}
+        </div>
+        {citation.chunk && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {citation.chunk.text_abstract || citation.chunk.text}
+          </div>
+        )}
+        {citation.manual_doc_name && !citation.chunk && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {citation.manual_doc_name} · {citation.manual_location}
+          </div>
+        )}
+      </div>
+    ))
+  }
 
   return (
     <div>
@@ -34,8 +50,8 @@ export default function SlotList({ entries, targetCount, onEdit, onDelete }: Slo
         }
 
         const isOpen = openId === entry.entry_id
-        const mustHave = entry.citations.filter((c) => c.kind === 'must_have')
-        const optional = entry.citations.filter((c) => c.kind === 'optional')
+        const required = entry.citations.filter((c) => c.citation_type === 'REQUIRED')
+        const supporting = entry.citations.filter((c) => c.citation_type === 'SUPPORTING')
 
         return (
           <div className={`slot-card filled${entry.is_extra ? ' extra' : ''}`} key={entry.entry_id}>
@@ -71,53 +87,37 @@ export default function SlotList({ entries, targetCount, onEdit, onDelete }: Slo
             </div>
             {isOpen && (
               <div className="slot-card-body">
-                <div className="field-label-block">Trích dẫn bắt buộc ({mustHave.length})</div>
+                <div className="field-label-block">Trích dẫn bắt buộc ({required.length})</div>
                 <div className="field-value-block">
-                  {mustHave.length === 0 && '—'}
-                  {mustHave.map((citation) => (
-                    <div key={citation.citation_id} style={{ marginBottom: 6 }}>
-                      <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12.5, color: 'var(--accent)' }}>
-                        {citationLabel(citation)}
-                      </div>
-                      <ul style={{ margin: '3px 0 0', paddingLeft: 18 }}>
-                        {citation.points.map((point) => (
-                          <li key={point.point_id}>{point.content}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                  {required.length === 0 ? '—' : renderCitations(required)}
                 </div>
 
-                {optional.length > 0 && (
+                {supporting.length > 0 && (
                   <>
-                    <div className="field-label-block">Trích dẫn bổ trợ ({optional.length})</div>
-                    <div className="field-value-block">
-                      {optional.map((citation) => (
-                        <div key={citation.citation_id} style={{ marginBottom: 6 }}>
-                          <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12.5, color: 'var(--accent)' }}>
-                            {citationLabel(citation)}
-                          </div>
-                          <ul style={{ margin: '3px 0 0', paddingLeft: 18 }}>
-                            {citation.points.map((point) => (
-                              <li key={point.point_id}>{point.content}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="field-label-block">Trích dẫn bổ trợ ({supporting.length})</div>
+                    <div className="field-value-block">{renderCitations(supporting)}</div>
                   </>
                 )}
 
-                <div className="field-label-block">Câu trả lời chuẩn</div>
-                <div className="field-value-block">{entry.expert_gold_answer}</div>
+                <div className="field-label-block">Evidence</div>
+                <div className="field-value-block">{entry.evidence}</div>
 
-                {entry.required_key_points.length > 0 && (
+                <div className="field-label-block">Finding</div>
+                <div className="field-value-block">{entry.finding}</div>
+
+                <div className="field-label-block">Impression</div>
+                <div className="field-value-block">{entry.impression}</div>
+
+                <div className="field-label-block">Conclusion</div>
+                <div className="field-value-block">{entry.conclusion}</div>
+
+                {entry.required_answer_points.length > 0 && (
                   <>
                     <div className="field-label-block">Ý bắt buộc</div>
                     <div className="field-value-block">
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        {entry.required_key_points.map((point, index) => (
-                          <li key={index}>{point}</li>
+                        {entry.required_answer_points.map((point) => (
+                          <li key={point.answer_point_id}>{point.content}</li>
                         ))}
                       </ul>
                     </div>

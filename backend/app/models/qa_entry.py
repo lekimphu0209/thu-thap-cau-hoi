@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -46,8 +45,10 @@ class QaEntry(Base):
     disease_or_topic: Mapped[str] = mapped_column(String(500), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False)
     expected_behavior: Mapped[str] = mapped_column(String(64), nullable=False)
-    expert_gold_answer: Mapped[str] = mapped_column(Text, nullable=False)
-    required_key_points: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False)
+    finding: Mapped[str] = mapped_column(Text, nullable=False)
+    impression: Mapped[str] = mapped_column(Text, nullable=False)
+    conclusion: Mapped[str] = mapped_column(Text, nullable=False)
     safety_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     annotator_name: Mapped[str] = mapped_column(String(255), nullable=False)
     review_status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
@@ -65,6 +66,13 @@ class QaEntry(Base):
         "QaCitation",
         back_populates="entry",
         order_by="QaCitation.order_index",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    required_answer_points: Mapped[list["RequiredAnswerPoint"]] = relationship(
+        "RequiredAnswerPoint",
+        back_populates="entry",
+        order_by="RequiredAnswerPoint.order_index",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

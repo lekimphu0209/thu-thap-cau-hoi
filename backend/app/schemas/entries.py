@@ -1,7 +1,12 @@
+import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _word_count(value: str) -> int:
+    return len(re.findall(r"\S+", value))
 
 
 class ChunkSummary(BaseModel):
@@ -10,35 +15,46 @@ class ChunkSummary(BaseModel):
     chunk_id: int
     doc_id: int
     doc_title: str
-    location_label: str
-    content: str
+    section_heading: str | None
+    text: str
+    text_abstract: str | None
 
 
 class CitationIn(BaseModel):
-    kind: str
+    citation_type: str
     chunk_id: int | None = None
     manual_doc_name: str | None = None
     manual_location: str | None = None
-    points: list[str] = Field(default_factory=list)
 
-
-class CitationPointOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    point_id: int
-    content: str
+    @field_validator("citation_type")
+    @classmethod
+    def _validate_citation_type(cls, value: str) -> str:
+        if value not in ("REQUIRED", "SUPPORTING"):
+            raise ValueError("citation_type phải là REQUIRED hoặc SUPPORTING")
+        return value
 
 
 class CitationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     citation_id: int
-    kind: str
+    citation_type: str
     chunk_id: int | None
     chunk: ChunkSummary | None
     manual_doc_name: str | None
     manual_location: str | None
-    points: list[CitationPointOut]
+
+
+class RequiredAnswerPointIn(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class RequiredAnswerPointOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    answer_point_id: int
+    content: str
+    order_index: int
 
 
 class QaEntryUpsertRequest(BaseModel):
@@ -47,13 +63,26 @@ class QaEntryUpsertRequest(BaseModel):
     disease_or_topic: str
     query: str = Field(min_length=1)
     expected_behavior: str
-    expert_gold_answer: str = Field(min_length=1)
-    required_key_points: list[str] = Field(default_factory=list)
+    evidence: str
+    finding: str
+    impression: str
+    conclusion: str
+    required_answer_points: list[RequiredAnswerPointIn] = Field(default_factory=list)
     safety_notes: str | None = None
     annotator_name: str
     review_status: str = "draft"
     note_for_expert: str | None = None
     citations: list[CitationIn] = Field(default_factory=list)
+
+    @field_validator("evidence", "finding", "impression", "conclusion")
+    @classmethod
+    def _validate_answer_field(cls, value: str) -> str:
+        words = _word_count(value)
+        if words < 20:
+            raise ValueError("phải có ít nhất 20 từ")
+        if words > 200:
+            raise ValueError("không được vượt quá 200 từ")
+        return value
 
 
 class QaEntryResponse(BaseModel):
@@ -68,8 +97,11 @@ class QaEntryResponse(BaseModel):
     disease_or_topic: str
     query: str
     expected_behavior: str
-    expert_gold_answer: str
-    required_key_points: list[str]
+    evidence: str
+    finding: str
+    impression: str
+    conclusion: str
+    required_answer_points: list[RequiredAnswerPointOut]
     safety_notes: str | None
     annotator_name: str
     review_status: str

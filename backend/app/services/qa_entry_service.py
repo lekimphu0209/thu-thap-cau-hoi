@@ -2,10 +2,13 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
-from app.models.qa_citation import QaCitation, QaCitationPoint
+from app.models.corpus import GuidelineChunk
+from app.models.qa_citation import QaCitation
 from app.models.qa_entry import QaEntry
+from app.models.required_answer_point import RequiredAnswerPoint
 from app.models.taxonomy import QuestionSubgroup
 from app.schemas.entries import CitationIn, QaEntryUpsertRequest
 
@@ -72,16 +75,20 @@ class QaEntryService:
             disease_or_topic=payload.disease_or_topic.strip(),
             query=payload.query.strip(),
             expected_behavior=payload.expected_behavior,
-            expert_gold_answer=payload.expert_gold_answer.strip(),
-            required_key_points=[point.strip() for point in payload.required_key_points if point.strip()],
+            evidence=payload.evidence.strip(),
+            finding=payload.finding.strip(),
+            impression=payload.impression.strip(),
+            conclusion=payload.conclusion.strip(),
             safety_notes=(payload.safety_notes or "").strip() or None,
             annotator_name=payload.annotator_name.strip(),
             review_status=payload.review_status,
             note_for_expert=(payload.note_for_expert or "").strip() or None,
         )
+        self._attach_answer_points(entry, payload.required_answer_points)
         self._attach_citations(entry, payload.citations)
         self.db.add(entry)
         await self.db.flush()
+        entry = await self._reload_entry(entry.entry_id)
         return entry, duplicate_warning
 
     async def update_entry(
@@ -94,20 +101,24 @@ class QaEntryService:
         entry.disease_or_topic = payload.disease_or_topic.strip()
         entry.query = payload.query.strip()
         entry.expected_behavior = payload.expected_behavior
-        entry.expert_gold_answer = payload.expert_gold_answer.strip()
-        entry.required_key_points = [
-            point.strip() for point in payload.required_key_points if point.strip()
-        ]
+        entry.evidence = payload.evidence.strip()
+        entry.finding = payload.finding.strip()
+        entry.impression = payload.impression.strip()
+        entry.conclusion = payload.conclusion.strip()
         entry.safety_notes = (payload.safety_notes or "").strip() or None
         entry.annotator_name = payload.annotator_name.strip()
         entry.review_status = payload.review_status
         entry.note_for_expert = (payload.note_for_expert or "").strip() or None
 
+        entry.required_answer_points.clear()
+        await self.db.flush()
+        self._attach_answer_points(entry, payload.required_answer_points)
+
         entry.citations.clear()
         await self.db.flush()
         self._attach_citations(entry, payload.citations)
         await self.db.flush()
-        return entry
+        return await self._reload_entry(entry.entry_id)
 
     async def delete_entry(self, *, entry_id: UUID, doctor_id: int) -> None:
         entry = await self.get_owned_entry(entry_id, doctor_id)
@@ -122,12 +133,26 @@ class QaEntryService:
                 entry_after.slot_index -= 1
         await self.db.flush()
 
+    async def _reload_entry(self, entry_id: UUID) -> QaEntry:
+        stmt = (
+            select(QaEntry)
+            .where(QaEntry.entry_id == entry_id)
+            .options(
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.chunk)
+                .selectinload(GuidelineChunk.document),
+                selectinload(QaEntry.required_answer_points),
+            )
+            .execution_options(populate_existing=True)
+        )
+        return (await self.db.execute(stmt)).scalar_one()
+
     @staticmethod
     def _validate_citations(citations: list[CitationIn]) -> None:
-        must_have = [item for item in citations if item.kind == "must_have"]
-        if not must_have:
-            raise BadRequestError("Cần ít nhất 1 trích dẫn bắt buộc (must_have).")
-        for citation in must_have:
+        required = [item for item in citations if item.citation_type == "REQUIRED"]
+        if not required:
+            raise BadRequestError("Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED).")
+        for citation in required:
             has_source = citation.chunk_id is not None or bool(
                 (citation.manual_doc_name or "").strip() and (citation.manual_location or "").strip()
             )
@@ -135,13 +160,20 @@ class QaEntryService:
                 raise BadRequestError(
                     "Mỗi trích dẫn bắt buộc cần chọn đoạn guideline hoặc nhập tên tài liệu + mục."
                 )
-            if not any(point.strip() for point in citation.points):
-                raise BadRequestError("Mỗi trích dẫn bắt buộc cần ít nhất 1 ý.")
 
     @staticmethod
     def _has_duplicate_query(existing: list[QaEntry], query: str) -> bool:
         normalized = query.strip().lower()
         return any(entry.query.strip().lower() == normalized for entry in existing)
+
+    @staticmethod
+    def _attach_answer_points(entry: QaEntry, points: list) -> None:
+        for order_index, point_data in enumerate(points):
+            content = point_data.content.strip()
+            if content:
+                entry.required_answer_points.append(
+                    RequiredAnswerPoint(content=content, order_index=order_index)
+                )
 
     @staticmethod
     def _attach_citations(entry: QaEntry, citations: list[CitationIn]) -> None:
@@ -152,15 +184,10 @@ class QaEntryService:
             if not has_content:
                 continue
             citation = QaCitation(
-                kind=citation_data.kind,
+                citation_type=citation_data.citation_type,
                 chunk_id=citation_data.chunk_id,
                 manual_doc_name=(citation_data.manual_doc_name or "").strip() or None,
                 manual_location=(citation_data.manual_location or "").strip() or None,
                 order_index=order_index,
             )
-            for point_index, point in enumerate(citation_data.points):
-                if point.strip():
-                    citation.points.append(
-                        QaCitationPoint(content=point.strip(), order_index=point_index)
-                    )
             entry.citations.append(citation)

@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_PASSWORD: str = "ChangeMe123!"
     DEFAULT_ADMIN_FULL_NAME: str = "System Admin"
 
+    # Web A (Guideline Management) read-only sync DB
+    GUIDELINE_SYNC_DB_HOST: str = "guideline-db"
+    GUIDELINE_SYNC_DB_PORT: int = 5436
+    GUIDELINE_SYNC_DB_USER: str = "web_b_readonly"
+    GUIDELINE_SYNC_DB_PASSWORD: str = ""
+    GUIDELINE_SYNC_DB_NAME: str = "guideline_management"
+
+    GUIDELINE_SYNC_ENABLED: bool = True
+    GUIDELINE_SYNC_INTERVAL_MINUTES: int = 60
+
     @property
     def database_url(self) -> str:
         return (
