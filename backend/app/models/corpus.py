@@ -53,9 +53,13 @@ class GuidelineDocument(Base):
     chunks: Mapped[list["GuidelineChunk"]] = relationship(
         "GuidelineChunk", back_populates="document", lazy="selectin"
     )
+    sections: Mapped[list["GuidelineSection"]] = relationship(
+        "GuidelineSection", back_populates="document", lazy="selectin"
+    )
 
 
 class GuidelineChunk(Base):
+    """Deprecated: kept for historical data only; do not use in the new citation flow."""
     __tablename__ = "guideline_chunks"
     __table_args__ = (
         Index("uq_guideline_chunks_external", "external_chunk_id", unique=True),

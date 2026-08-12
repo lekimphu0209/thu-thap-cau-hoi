@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models.corpus import GuidelineChunk, GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 
 
 class GuidelineService:
@@ -43,6 +44,26 @@ class GuidelineService:
         if doc is None:
             raise NotFoundError(f"Không tìm thấy guideline document id={doc_id}.")
         return doc
+
+    async def list_sections(
+        self,
+        *,
+        doc_id: int,
+        search: str | None = None,
+        limit: int = 200,
+    ) -> list[GuidelineSection]:
+        await self.get_document(doc_id)
+        stmt = select(GuidelineSection).where(GuidelineSection.doc_id == doc_id)
+        if search:
+            pattern = f"%{search.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    GuidelineSection.heading.ilike(pattern),
+                    GuidelineSection.section_path.ilike(pattern),
+                )
+            )
+        stmt = stmt.order_by(GuidelineSection.order_index, GuidelineSection.section_id).limit(limit)
+        return list((await self.db.execute(stmt)).scalars().all())
 
     async def list_chunks(
         self,

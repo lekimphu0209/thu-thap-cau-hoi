@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 from app.models.corpus import GuidelineChunk, GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 from app.models.sync_log import SyncLog
 from app.models.sync_watermark import SyncWatermark
 
@@ -50,6 +51,7 @@ async def sync_guidelines(db: AsyncSession) -> SyncLog:
     await db.flush()
 
     documents_synced = 0
+    sections_synced = 0
     chunks_synced = 0
     chunks_deleted = 0
 
@@ -57,6 +59,7 @@ async def sync_guidelines(db: AsyncSession) -> SyncLog:
         GuidelineSession = _get_engine()
         async with GuidelineSession() as web_a:
             documents_synced = await _sync_documents(db, web_a)
+            sections_synced = await _sync_sections(db, web_a)
             chunks_synced, chunks_deleted = await _sync_chunks(db, web_a)
 
         log.status = "success"
@@ -68,6 +71,7 @@ async def sync_guidelines(db: AsyncSession) -> SyncLog:
     finally:
         log.finished_at = datetime.now(timezone.utc)
         log.documents_synced = documents_synced
+        log.sections_synced = sections_synced
         log.chunks_synced = chunks_synced
         log.chunks_deleted = chunks_deleted
 
@@ -182,8 +186,107 @@ async def _sync_documents(db: AsyncSession, web_a: AsyncSession) -> int:
     return count
 
 
+async def _sync_sections(db: AsyncSession, web_a: AsyncSession) -> int:
+    """Reconcile sections for every synced version from Web A."""
+    docs = await db.execute(
+        text(
+            """
+            SELECT doc_id, external_version_id
+            FROM guideline_documents
+            WHERE external_version_id IS NOT NULL
+              AND (status IS NULL OR status != 'deleted')
+            """
+        )
+    )
+    doc_versions = {
+        row.doc_id: row.external_version_id for row in docs.mappings().all()
+    }
+
+    if not doc_versions:
+        return 0
+
+    version_to_doc = {v: d for d, v in doc_versions.items()}
+    version_ids = list(version_to_doc.keys())
+
+    sections_result = await web_a.execute(
+        text(
+            """
+            SELECT
+                s.section_id,
+                s.version_id,
+                s.heading,
+                s.section_path,
+                s.order_index
+            FROM sections s
+            WHERE s.version_id = ANY(:version_ids)
+            """
+        ),
+        {"version_ids": version_ids},
+    )
+
+    now = datetime.now(timezone.utc)
+    upserted = 0
+    active_section_ids: list[int] = []
+
+    for row in sections_result.mappings().all():
+        active_section_ids.append(row["section_id"])
+        doc_id = version_to_doc.get(row["version_id"])
+        if doc_id is None:
+            continue
+
+        values = {
+            "external_section_id": row["section_id"],
+            "doc_id": doc_id,
+            "external_version_id": row["version_id"],
+            "heading": row["heading"],
+            "section_path": row["section_path"] or row["heading"] or "",
+            "order_index": row["order_index"] if row["order_index"] is not None else 0,
+            "synced_at": now,
+        }
+        upsert = (
+            insert(GuidelineSection)
+            .values(values)
+            .on_conflict_do_update(
+                index_elements=[GuidelineSection.external_section_id],
+                set_=values,
+            )
+        )
+        await db.execute(upsert)
+        upserted += 1
+
+    # Remove stale sections for active documents, but keep ones referenced by citations.
+    active_doc_ids = list(doc_versions.keys())
+    if active_section_ids:
+        await db.execute(
+            text(
+                """
+                DELETE FROM guideline_sections
+                WHERE doc_id = ANY(:doc_ids)
+                  AND external_section_id IS NOT NULL
+                  AND external_section_id != ALL(:active_ids)
+                  AND section_id NOT IN (SELECT section_id FROM qa_citations)
+                """
+            ),
+            {"doc_ids": active_doc_ids, "active_ids": active_section_ids},
+        )
+    else:
+        await db.execute(
+            text(
+                """
+                DELETE FROM guideline_sections
+                WHERE doc_id = ANY(:doc_ids)
+                  AND section_id NOT IN (SELECT section_id FROM qa_citations)
+                """
+            ),
+            {"doc_ids": active_doc_ids},
+        )
+
+    await db.flush()
+    return upserted
+
+
 async def _sync_chunks(db: AsyncSession, web_a: AsyncSession) -> tuple[int, int]:
-    """Reconcile chunks for every synced version."""
+    """Reconcile chunks for every synced version (kept for backward compatibility)."""
     # Get current doc_id -> version_id mapping.
     docs = await db.execute(
         text(
@@ -311,11 +414,18 @@ async def _update_watermark(db: AsyncSession) -> None:
     max_version = await db.scalar(
         text("SELECT MAX(external_document_id) FROM guideline_documents")
     )
+    max_section = await db.scalar(
+        text("SELECT MAX(external_section_id) FROM guideline_sections")
+    )
     max_chunk = await db.scalar(
         text("SELECT MAX(external_chunk_id) FROM guideline_chunks")
     )
 
-    for name, value in (("document", max_version), ("chunk", max_chunk)):
+    for name, value in (
+        ("document", max_version),
+        ("section", max_section),
+        ("chunk", max_chunk),
+    ):
         if value is None:
             continue
         await db.execute(

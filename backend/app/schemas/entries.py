@@ -9,22 +9,24 @@ def _word_count(value: str) -> int:
     return len(re.findall(r"\S+", value))
 
 
-class ChunkSummary(BaseModel):
+class CitationTextIn(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class CitationTextOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    chunk_id: int
-    doc_id: int
-    doc_title: str
-    section_heading: str | None
-    text: str
-    text_abstract: str | None
+    citation_text_id: int
+    citation_id: int
+    content: str
+    order_index: int
 
 
 class CitationIn(BaseModel):
     citation_type: str
-    chunk_id: int | None = None
-    manual_doc_name: str | None = None
-    manual_location: str | None = None
+    guideline_document_id: int
+    guideline_section_id: int
+    texts: list[CitationTextIn] = Field(default_factory=list, min_length=1)
 
     @field_validator("citation_type")
     @classmethod
@@ -39,10 +41,12 @@ class CitationOut(BaseModel):
 
     citation_id: int
     citation_type: str
-    chunk_id: int | None
-    chunk: ChunkSummary | None
-    manual_doc_name: str | None
-    manual_location: str | None
+    guideline_document_id: int
+    guideline_section_id: int
+    document_title: str | None
+    section_path: str | None
+    texts: list[CitationTextOut]
+    order_index: int
 
 
 class RequiredAnswerPointIn(BaseModel):

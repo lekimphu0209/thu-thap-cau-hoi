@@ -22,6 +22,9 @@ class SyncLog(Base):
     documents_synced: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    sections_synced: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     chunks_synced: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )

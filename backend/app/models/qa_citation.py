@@ -25,19 +25,33 @@ class QaCitation(Base):
         index=True,
     )
     citation_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    chunk_id: Mapped[int | None] = mapped_column(
+    doc_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("guideline_chunks.chunk_id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("guideline_documents.doc_id", ondelete="RESTRICT"),
+        nullable=False,
         index=True,
     )
-    manual_doc_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    manual_location: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    section_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("guideline_sections.section_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     order_index: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
 
     entry: Mapped["QaEntry"] = relationship("QaEntry", back_populates="citations")
-    chunk: Mapped["GuidelineChunk | None"] = relationship(
-        "GuidelineChunk", lazy="selectin"
+    document: Mapped["GuidelineDocument"] = relationship(
+        "GuidelineDocument", lazy="selectin"
+    )
+    section: Mapped["GuidelineSection"] = relationship(
+        "GuidelineSection", lazy="selectin"
+    )
+    texts: Mapped[list["QaCitationText"]] = relationship(
+        "QaCitationText",
+        back_populates="citation",
+        order_by="QaCitationText.order_index",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
