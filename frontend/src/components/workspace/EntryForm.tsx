@@ -17,36 +17,65 @@ const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
 const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
 
 interface AnswerField {
-  label: string
   key: 'evidence' | 'finding' | 'impression' | 'conclusion'
-  hint: string
-  placeholder: string
+  orderLabel: string
+  label: string
+  description: string
+  bullets: string[]
 }
 
 const ANSWER_FIELDS: AnswerField[] = [
   {
     key: 'evidence',
-    label: 'Dữ kiện',
-    hint: 'Các dữ kiện khách quan rút ra từ câu hỏi: triệu chứng, tiền sử, hoàn cảnh của người hỏi.',
-    placeholder: 'VD: Bệnh nhân ho kéo dài >2 tuần, có thể kèm sốt nhẹ, đổ mồ hôi đêm, sụt cân.',
+    orderLabel: '3.1',
+    label: 'Tình huống và dữ kiện',
+    description:
+      'Những gì câu hỏi đã cho biết và những gì còn thiếu. Ghi đúng như người hỏi mô tả, chưa nhận định.',
+    bullets: [
+      'Người hỏi là người bệnh, người nhà hay nhân viên y tế.',
+      'Triệu chứng người hỏi kể: khởi phát, tính chất, mức độ và diễn biến theo thời gian.',
+      'Tiền sử, bệnh kèm theo, thuốc đang dùng, yếu tố nguy cơ hoặc yếu tố dịch tễ.',
+      'Chỉ số, kết quả xét nghiệm hoặc chẩn đoán hình ảnh người hỏi đã cung cấp, nếu có.',
+      'Dữ kiện còn thiếu, cần hỏi thêm trước khi kết luận.',
+    ],
   },
   {
     key: 'finding',
-    label: 'Phát hiện',
-    hint: 'Đối chiếu dữ kiện với guideline đã trích dẫn: thông tin y khoa liên quan tìm được.',
-    placeholder: 'VD: Theo guideline, ho kéo dài >2 tuần kèm sốt và sụt cân là dấu hiệu nghi lao phổi.',
+    orderLabel: '3.2',
+    label: 'Căn cứ theo hướng dẫn',
+    description:
+      'Nội dung hướng dẫn chuyên môn dùng làm căn cứ, lấy từ tài liệu đã nêu ở phần Trích dẫn.',
+    bullets: [
+      'Tiêu chuẩn chẩn đoán, phân độ, chỉ định, chống chỉ định hoặc khuyến cáo, tuỳ nội dung câu hỏi.',
+      'Cận lâm sàng hướng dẫn yêu cầu để chẩn đoán xác định hoặc để theo dõi.',
+      'Dấu hiệu nặng, tiêu chí nhập viện, chuyển tuyến hoặc cấp cứu nếu hướng dẫn có nêu.',
+      'Nếu hướng dẫn không đề cập, ghi rõ là chưa có căn cứ thay vì suy đoán.',
+    ],
   },
   {
     key: 'impression',
-    label: 'Ấn tượng lâm sàng',
-    hint: 'Nhận định/đánh giá tổng hợp dựa trên dữ kiện và phát hiện ở trên.',
-    placeholder: 'VD: Nghi ngờ lao phổi tiềm ẩn, cần chẩn đoán xác định bằng X-quang và xét nghiệm đờm.',
+    orderLabel: '3.3',
+    label: 'Nhận định chuyên môn',
+    description:
+      'Đối chiếu dữ kiện với căn cứ hướng dẫn để đưa ra nhận định cho đúng tình huống này.',
+    bullets: [
+      'Tóm tắt hội chứng, triệu chứng dương tính và triệu chứng âm tính có giá trị.',
+      'Biện luận chẩn đoán hướng tới và chẩn đoán phân biệt, kèm bằng chứng ủng hộ hoặc loại trừ.',
+      'Với câu hỏi về điều trị, phòng bệnh hoặc chăm sóc: nêu lựa chọn phù hợp và lý do chọn.',
+      'Khi dữ kiện chưa đủ thì dừng ở mức triệu chứng hoặc hội chứng, không kết luận thành bệnh.',
+    ],
   },
   {
     key: 'conclusion',
-    label: 'Kết luận',
-    hint: 'Khuyến nghị hành động cụ thể, an toàn dành cho người hỏi.',
-    placeholder: 'VD: Khuyến nghị đi khám bác sĩ để làm thêm chẩn đoán; không tự ý dùng thuốc.',
+    orderLabel: '3.4',
+    label: 'Kết luận và hướng xử trí',
+    description: 'Chốt lại câu trả lời và việc người hỏi cần làm tiếp theo.',
+    bullets: [
+      'Trả lời trực tiếp vào câu hỏi đã đặt; người bệnh và người nhà cần diễn đạt dễ hiểu, nhân viên y tế có thể dùng thuật ngữ chuyên môn.',
+      'Hướng xử trí tiếp theo: khám ở tuyến nào, cần làm xét nghiệm gì, theo dõi và tái khám ra sao.',
+      'Dấu hiệu cần đi khám ngay hoặc chuyển cấp cứu.',
+      'Giới hạn tư vấn: không kê đơn hoặc chỉ định liều cụ thể, không khẳng định chẩn đoán khi chưa đủ dữ kiện.',
+    ],
   },
 ]
 
@@ -120,10 +149,10 @@ function countWords(value: string): number {
   return (value.trim().match(/\S+/g) || []).length
 }
 
-function validateField(value: string, name: string): string | null {
+function validateField(value: string): string | null {
   const words = countWords(value)
-  if (words < MIN_WORDS) return `${name} cần ít nhất ${MIN_WORDS} từ (hiện tại ${words})`
-  if (words > MAX_WORDS) return `${name} không được vượt quá ${MAX_WORDS} từ (hiện tại ${words})`
+  if (words < MIN_WORDS) return `Cần tối thiểu ${MIN_WORDS} từ (hiện có ${words} từ)`
+  if (words > MAX_WORDS) return `Không quá ${MAX_WORDS} từ (hiện có ${words} từ)`
   return null
 }
 
@@ -134,7 +163,7 @@ function validateForm(form: FormState): FormErrors {
   if (!form.annotatorName.trim()) errors.annotatorName = REQUIRED_FIELD_MESSAGE
 
   for (const field of ANSWER_FIELDS) {
-    const error = validateField(form[field.key], field.label)
+    const error = validateField(form[field.key])
     if (error) errors[field.key] = error
   }
 
@@ -194,11 +223,11 @@ function FieldError({ message }: { message?: string }) {
 
 function WordCounter({ value }: { value: string }) {
   const words = countWords(value)
-  const color = words < MIN_WORDS || words > MAX_WORDS ? 'var(--error)' : 'var(--text-muted)'
+  const withinRange = words >= MIN_WORDS && words <= MAX_WORDS
   return (
-    <div className="form-hint" style={{ color, textAlign: 'right', marginTop: 4 }}>
-      {words} từ (yêu cầu {MIN_WORDS}–{MAX_WORDS} từ)
-    </div>
+    <span className={`answer-word-count${withinRange ? ' ok' : ''}`}>
+      {words} từ · yêu cầu {MIN_WORDS}–{MAX_WORDS} từ
+    </span>
   )
 }
 
@@ -373,24 +402,40 @@ function EntryFormImpl(
           <label className="form-label">
             3 · Câu trả lời chuẩn <RequiredMark />
           </label>
-          <div className="form-hint" style={{ marginBottom: 8 }}>
-            Điền đủ 4 phần theo cấu trúc, mỗi phần {MIN_WORDS}–{MAX_WORDS} từ.
+          <div className="form-hint">
+            Viết đủ 4 phần dưới đây, mỗi phần {MIN_WORDS}–{MAX_WORDS} từ. Ngắn gọn, đủ ý, bám tài
+            liệu đã trích dẫn; dùng từ ngữ rõ ràng, hạn chế viết tắt.
           </div>
-          {ANSWER_FIELDS.map((field) => (
-            <div key={field.key} className="form-group" style={{ marginBottom: 16 }}>
-              <label className="form-label">{field.label}</label>
-              <div className="form-hint" style={{ marginBottom: 4 }}>{field.hint}</div>
-              <textarea
-                className={`form-textarea${fieldErrors[field.key] ? ' has-error' : ''}`}
-                rows={4}
-                value={form[field.key]}
-                onChange={(event) => update(field.key, event.target.value)}
-                placeholder={field.placeholder}
-              />
-              <WordCounter value={form[field.key]} />
-              <FieldError message={fieldErrors[field.key]} />
-            </div>
-          ))}
+          <div className="answer-sections">
+            {ANSWER_FIELDS.map((field) => (
+              <div key={field.key} className="answer-section">
+                <div className="answer-section-title">
+                  <span className="answer-section-order">{field.orderLabel}</span>
+                  {field.label}
+                </div>
+                <div className="answer-section-desc">{field.description}</div>
+                <ul className="answer-section-bullets">
+                  {field.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+                <textarea
+                  className={`form-textarea${fieldErrors[field.key] ? ' has-error' : ''}`}
+                  rows={4}
+                  value={form[field.key]}
+                  onChange={(event) => update(field.key, event.target.value)}
+                />
+                <div className="answer-section-foot">
+                  {fieldErrors[field.key] ? (
+                    <span className="field-error-text">{fieldErrors[field.key]}</span>
+                  ) : (
+                    <span />
+                  )}
+                  <WordCounter value={form[field.key]} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="form-group">
