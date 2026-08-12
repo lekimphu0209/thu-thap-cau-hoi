@@ -2,6 +2,7 @@ import { Check, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import type { CitationInput, CitationType, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
 import CitationSection from './CitationSection.tsx'
+import { type CitationErrors } from './CitationBlock.tsx'
 import KeyPointsBuilder from './KeyPointsBuilder'
 
 const ROLE_OPTIONS = [
@@ -67,14 +68,7 @@ interface FormState {
 }
 
 type FormErrorKey = 'query' | 'diseaseOrTopic' | 'annotatorName' | 'citations' | AnswerField['key']
-type FormErrors = Partial<Record<FormErrorKey, string>>
-
-const blankCitation = (): CitationInput => ({
-  citation_type: 'REQUIRED',
-  guideline_document_id: 0,
-  guideline_section_id: 0,
-  texts: [{ content: '' }],
-})
+type FormErrors = Partial<Record<FormErrorKey, string>> & { citationErrors?: CitationErrors[] }
 
 function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], reviewStatuses: LookupOption[]): FormState {
   return {
@@ -91,7 +85,7 @@ function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], rev
     annotatorName,
     reviewStatus: reviewStatuses.find((status) => status.value === 'draft')?.value ?? reviewStatuses[0]?.value ?? '',
     noteForExpert: '',
-    citations: [blankCitation()],
+    citations: [],
   }
 }
 
@@ -118,7 +112,7 @@ function formFromEntry(entry: QaEntry): FormState {
     annotatorName: entry.annotator_name,
     reviewStatus: entry.review_status,
     noteForExpert: entry.note_for_expert ?? '',
-    citations: entry.citations.length ? entry.citations.map(toDraft) : [blankCitation()],
+    citations: entry.citations.length ? entry.citations.map(toDraft) : [],
   }
 }
 
@@ -144,14 +138,30 @@ function validateForm(form: FormState): FormErrors {
     if (error) errors[field.key] = error
   }
 
+  const citationErrors: CitationErrors[] = form.citations.map((c) => {
+    const cErrors: CitationErrors = {}
+    if (!c.guideline_document_id) cErrors.document = 'Vui lòng chọn tài liệu.'
+    if (!c.guideline_section_id) cErrors.section = 'Vui lòng chọn section.'
+    if (!c.texts.some((t) => t.content.trim().length > 0)) {
+      cErrors.texts = 'Cần ít nhất 1 ý trích dẫn.'
+    }
+    return cErrors
+  })
+
   const validCitations = form.citations.filter(
-    (c) =>
+    (c, i) =>
       c.guideline_document_id > 0 &&
       c.guideline_section_id > 0 &&
-      c.texts.some((t) => t.content.trim().length > 0)
+      c.texts.some((t) => t.content.trim().length > 0) &&
+      Object.keys(citationErrors[i]).length === 0
   )
   const hasRequired = validCitations.some((c) => c.citation_type === 'REQUIRED')
-  if (!hasRequired) errors.citations = REQUIRED_CITATION_MESSAGE
+  if (!hasRequired) {
+    errors.citations = REQUIRED_CITATION_MESSAGE
+    if (form.citations.length > 0) {
+      errors.citationErrors = citationErrors
+    }
+  }
 
   return errors
 }
@@ -349,14 +359,12 @@ function EntryFormImpl(
 
         <div className="form-group">
           <label className="form-label">
-            2 · Trích dẫn guideline <RequiredMark />
+            2 · Trích dẫn bắt buộc <RequiredMark />
           </label>
-          <div className="form-hint" style={{ marginBottom: 8 }}>
-            Mỗi trích dẫn gồm 1 tài liệu + 1 mục + ít nhất 1 đoạn text. Cần ít nhất 1 trích dẫn <b>Bắt buộc</b>.
-          </div>
           <CitationSection
             citations={form.citations}
             onChange={(citations) => update('citations', citations)}
+            errors={fieldErrors.citationErrors}
             error={fieldErrors.citations}
           />
         </div>

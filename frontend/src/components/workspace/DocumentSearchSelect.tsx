@@ -1,21 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { guidelinesApi } from '../../api/guidelinesApi'
 import type { GuidelineDocument } from '../../lib/types'
+import Combobox from './Combobox.tsx'
 
 interface DocumentSearchSelectProps {
   selectedDocId: number | null
   onSelect: (doc: GuidelineDocument) => void
   onClear: () => void
+  invalid?: boolean
 }
 
 export default function DocumentSearchSelect({
   selectedDocId,
   onSelect,
   onClear,
+  invalid = false,
 }: DocumentSearchSelectProps) {
   const [search, setSearch] = useState('')
   const [documents, setDocuments] = useState<GuidelineDocument[]>([])
-  const [selected, setSelected] = useState<GuidelineDocument | null>(null)
   const [loading, setLoading] = useState(false)
   const timerRef = useRef<number | null>(null)
 
@@ -25,10 +27,6 @@ export default function DocumentSearchSelect({
       try {
         const res = await guidelinesApi.searchDocuments({ q: search, limit: 50 })
         setDocuments(res.data)
-        if (selectedDocId) {
-          const found = res.data.find((d) => d.doc_id === selectedDocId)
-          if (found) setSelected(found)
-        }
       } catch {
         setDocuments([])
       } finally {
@@ -42,52 +40,53 @@ export default function DocumentSearchSelect({
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current)
     }
-  }, [search, selectedDocId])
+  }, [search])
 
-  const handleSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const docId = Number(event.target.value)
-    const doc = documents.find((d) => d.doc_id === docId)
-    if (doc) {
-      setSelected(doc)
-      onSelect(doc)
+  useEffect(() => {
+    if (!selectedDocId) return
+    const fetchOne = async () => {
+      try {
+        const res = await guidelinesApi.searchDocuments({ q: '', limit: 200 })
+        const found = res.data.find((d) => d.doc_id === selectedDocId)
+        if (found) {
+          setDocuments((prev) => (prev.some((d) => d.doc_id === found.doc_id) ? prev : [...prev, found]))
+        }
+      } catch {
+        // ignore
+      }
     }
+    fetchOne()
+  }, [selectedDocId])
+
+  const handleSelect = (item: { id: number }) => {
+    const doc = documents.find((d) => d.doc_id === item.id)
+    if (doc) onSelect(doc)
   }
 
   const handleClear = () => {
-    setSelected(null)
     setSearch('')
     onClear()
   }
 
+  const items = documents.map((doc) => ({
+    id: doc.doc_id,
+    label: doc.title,
+    subLabel: [doc.publisher, doc.version_label].filter(Boolean).join(' · '),
+  }))
+
   return (
-    <div>
-      <input
-        type="text"
-        className="form-input"
-        placeholder="Tìm tài liệu..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginBottom: 8 }}
-      />
-      {selected ? (
-        <div className="selected-item" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span className="badge badge-default" style={{ flex: 1, textAlign: 'left' }}>
-            {selected.title} {selected.version_label ? `(${selected.version_label})` : ''}
-          </span>
-          <button type="button" className="btn btn-ghost btn-xs" onClick={handleClear}>
-            Đổi
-          </button>
-        </div>
-      ) : (
-        <select className="form-select" value="" onChange={handleSelect}>
-          <option value="">{loading ? 'Đang tải...' : 'Chọn tài liệu'}</option>
-          {documents.map((doc) => (
-            <option key={doc.doc_id} value={doc.doc_id}>
-              {doc.title} {doc.version_label ? `(${doc.version_label})` : ''}
-            </option>
-          ))}
-        </select>
-      )}
-    </div>
+    <Combobox
+      value={selectedDocId}
+      items={items}
+      searchValue={search}
+      onSearchChange={setSearch}
+      onSelect={handleSelect}
+      onClear={handleClear}
+      placeholder="Chọn tài liệu"
+      searchPlaceholder="Tìm tài liệu guideline..."
+      loading={loading}
+      emptyText="Không tìm thấy tài liệu phù hợp"
+      invalid={invalid}
+    />
   )
 }

@@ -23,7 +23,6 @@ class GuidelineSection(Base):
         BigInteger,
         ForeignKey("guideline_documents.doc_id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     external_version_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, index=True

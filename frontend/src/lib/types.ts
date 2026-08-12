@@ -174,8 +174,10 @@ export interface GuidelineDocument {
 export interface GuidelineSection {
   section_id: number
   doc_id: number
+  heading: string | null
   section_path: string | null
   order_index: number | null
+  text_abstract: string | null
 }
 
 export interface GuidelineChunk {

@@ -56,14 +56,45 @@ class GuidelineService:
         stmt = select(GuidelineSection).where(GuidelineSection.doc_id == doc_id)
         if search:
             pattern = f"%{search.strip()}%"
+            content_headings = (
+                select(GuidelineChunk.section_heading)
+                .where(GuidelineChunk.doc_id == doc_id)
+                .where(
+                    or_(
+                        GuidelineChunk.text.ilike(pattern),
+                        GuidelineChunk.text_abstract.ilike(pattern),
+                    )
+                )
+                .distinct()
+            ).subquery()
             stmt = stmt.where(
                 or_(
                     GuidelineSection.heading.ilike(pattern),
                     GuidelineSection.section_path.ilike(pattern),
+                    GuidelineSection.heading.in_(content_headings),
                 )
             )
         stmt = stmt.order_by(GuidelineSection.order_index, GuidelineSection.section_id).limit(limit)
-        return list((await self.db.execute(stmt)).scalars().all())
+        sections = list((await self.db.execute(stmt)).scalars().all())
+
+        headings = [s.heading for s in sections if s.heading]
+        if headings:
+            chunk_stmt = (
+                select(GuidelineChunk.section_heading, GuidelineChunk.text_abstract)
+                .where(GuidelineChunk.doc_id == doc_id)
+                .where(GuidelineChunk.section_heading.in_(headings))
+                .order_by(GuidelineChunk.section_heading, GuidelineChunk.chunk_id)
+            )
+            chunk_rows = (await self.db.execute(chunk_stmt)).all()
+            chunk_map: dict[str | None, str | None] = {}
+            for row in chunk_rows:
+                h, abstract = row
+                if h is not None and h not in chunk_map:
+                    chunk_map[h] = abstract
+            for section in sections:
+                section.text_abstract = chunk_map.get(section.heading)
+
+        return sections
 
     async def list_chunks(
         self,

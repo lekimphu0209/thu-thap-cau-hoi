@@ -41,8 +41,8 @@ class CitationOut(BaseModel):
 
     citation_id: int
     citation_type: str
-    guideline_document_id: int
-    guideline_section_id: int
+    guideline_document_id: int = Field(validation_alias='doc_id')
+    guideline_section_id: int = Field(validation_alias='section_id')
     document_title: str | None
     section_path: str | None
     texts: list[CitationTextOut]
