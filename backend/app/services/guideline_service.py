@@ -52,8 +52,13 @@ class GuidelineService:
         search: str | None = None,
         limit: int = 200,
     ) -> list[GuidelineSection]:
-        await self.get_document(doc_id)
-        stmt = select(GuidelineSection).where(GuidelineSection.doc_id == doc_id)
+        doc = await self.get_document(doc_id)
+
+        # Section thuộc về version_id của document, không phải doc_id trung gian
+        filters = [GuidelineSection.doc_id == doc.doc_id]
+        if doc.external_version_id is not None:
+            filters.append(GuidelineSection.external_version_id == doc.external_version_id)
+        stmt = select(GuidelineSection).where(or_(*filters))
         if search:
             pattern = f"%{search.strip()}%"
             content_headings = (
