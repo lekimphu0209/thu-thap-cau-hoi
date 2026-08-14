@@ -1,8 +1,8 @@
 import { Check, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { guidelinesApi } from '../../api/guidelinesApi'
-import type { CitationInput, GuidelineDocument, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
-import ChunkSelector from './ChunkSelector.tsx'
+import type { CitationInput, CitationType, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
+import CitationSection from './CitationSection.tsx'
+import { type CitationErrors } from './CitationBlock.tsx'
 import KeyPointsBuilder from './KeyPointsBuilder'
 
 const ROLE_OPTIONS = [
@@ -13,7 +13,6 @@ const ROLE_OPTIONS = [
 
 const MIN_WORDS = 20
 const MAX_WORDS = 200
-const SEARCH_DEBOUNCE_MS = 400
 const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
 const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
 
@@ -65,12 +64,11 @@ interface FormState {
   annotatorName: string
   reviewStatus: string
   noteForExpert: string
-  selectedDocId: number | null
-  selectedChunks: CitationInput[]
+  citations: CitationInput[]
 }
 
 type FormErrorKey = 'query' | 'diseaseOrTopic' | 'annotatorName' | 'citations' | AnswerField['key']
-type FormErrors = Partial<Record<FormErrorKey, string>>
+type FormErrors = Partial<Record<FormErrorKey, string>> & { citationErrors?: CitationErrors[] }
 
 function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], reviewStatuses: LookupOption[]): FormState {
   return {
@@ -87,17 +85,16 @@ function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], rev
     annotatorName,
     reviewStatus: reviewStatuses.find((status) => status.value === 'draft')?.value ?? reviewStatuses[0]?.value ?? '',
     noteForExpert: '',
-    selectedDocId: null,
-    selectedChunks: [],
+    citations: [],
   }
 }
 
 function formFromEntry(entry: QaEntry): FormState {
   const toDraft = (citation: QaEntry['citations'][number]): CitationInput => ({
-    citation_type: citation.citation_type,
-    chunk_id: citation.chunk_id,
-    manual_doc_name: citation.manual_doc_name,
-    manual_location: citation.manual_location,
+    citation_type: citation.citation_type as CitationType,
+    guideline_document_id: citation.guideline_document_id,
+    guideline_section_id: citation.guideline_section_id,
+    texts: citation.texts.length ? citation.texts.map((t) => ({ content: t.content })) : [{ content: '' }],
   })
   return {
     role: entry.role,
@@ -115,8 +112,7 @@ function formFromEntry(entry: QaEntry): FormState {
     annotatorName: entry.annotator_name,
     reviewStatus: entry.review_status,
     noteForExpert: entry.note_for_expert ?? '',
-    selectedDocId: entry.citations.find((c) => c.chunk_id)?.chunk?.doc_id ?? null,
-    selectedChunks: entry.citations.map(toDraft),
+    citations: entry.citations.length ? entry.citations.map(toDraft) : [],
   }
 }
 
@@ -142,8 +138,30 @@ function validateForm(form: FormState): FormErrors {
     if (error) errors[field.key] = error
   }
 
-  const hasRequired = form.selectedChunks.some((c) => c.citation_type === 'REQUIRED')
-  if (!hasRequired) errors.citations = REQUIRED_CITATION_MESSAGE
+  const citationErrors: CitationErrors[] = form.citations.map((c) => {
+    const cErrors: CitationErrors = {}
+    if (!c.guideline_document_id) cErrors.document = 'Vui lòng chọn tài liệu.'
+    if (!c.guideline_section_id) cErrors.section = 'Vui lòng chọn section.'
+    if (!c.texts.some((t) => t.content.trim().length > 0)) {
+      cErrors.texts = 'Cần ít nhất 1 ý trích dẫn.'
+    }
+    return cErrors
+  })
+
+  const validCitations = form.citations.filter(
+    (c, i) =>
+      c.guideline_document_id > 0 &&
+      c.guideline_section_id > 0 &&
+      c.texts.some((t) => t.content.trim().length > 0) &&
+      Object.keys(citationErrors[i]).length === 0
+  )
+  const hasRequired = validCitations.some((c) => c.citation_type === 'REQUIRED')
+  if (!hasRequired) {
+    errors.citations = REQUIRED_CITATION_MESSAGE
+    if (form.citations.length > 0) {
+      errors.citationErrors = citationErrors
+    }
+  }
 
   return errors
 }
@@ -200,8 +218,6 @@ function EntryFormImpl(
 ) {
   const [form, setForm] = useState<FormState>(() => blankForm(annotatorName, expectedBehaviors, reviewStatuses))
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({})
-  const [documents, setDocuments] = useState<GuidelineDocument[]>([])
-  const [docSearch, setDocSearch] = useState('')
 
   useEffect(() => {
     if (editingEntry) {
@@ -212,16 +228,6 @@ function EntryFormImpl(
     setFieldErrors({})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEntry, subgroup.subgroup_id])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      guidelinesApi.listDocuments({ search: docSearch, limit: 50 })
-        .then((res) => setDocuments(res.data))
-        .catch(() => setDocuments([]))
-    }, SEARCH_DEBOUNCE_MS)
-
-    return () => window.clearTimeout(timer)
-  }, [docSearch])
 
   useImperativeHandle(ref, () => ({
     fillQuery: (query: string) => setForm((prev) => ({ ...prev, query })),
@@ -261,7 +267,12 @@ function EntryFormImpl(
       annotator_name: form.annotatorName,
       review_status: form.reviewStatus,
       note_for_expert: form.noteForExpert.trim() || null,
-      citations: form.selectedChunks,
+      citations: form.citations.filter(
+        (c) =>
+          c.guideline_document_id > 0 &&
+          c.guideline_section_id > 0 &&
+          c.texts.some((t) => t.content.trim().length > 0)
+      ),
     }
     await onSubmit(payload)
   }
@@ -348,54 +359,19 @@ function EntryFormImpl(
 
         <div className="form-group">
           <label className="form-label">
-            2 · Tài liệu guideline <RequiredMark />
+            2 · Trích dẫn bắt buộc <RequiredMark />
           </label>
-          <div className="form-hint" style={{ marginBottom: 8 }}>
-            Chọn tài liệu làm nguồn trích dẫn cho câu trả lời ở phần 3 và 4.
-          </div>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Tìm tài liệu..."
-            value={docSearch}
-            onChange={(event) => setDocSearch(event.target.value)}
-            style={{ marginBottom: 8 }}
+          <CitationSection
+            citations={form.citations}
+            onChange={(citations) => update('citations', citations)}
+            errors={fieldErrors.citationErrors}
+            error={fieldErrors.citations}
           />
-          <select
-            className="form-select"
-            value={form.selectedDocId ?? ''}
-            onChange={(event) =>
-              update('selectedDocId', event.target.value ? Number(event.target.value) : null)
-            }
-          >
-            <option value="">Chọn tài liệu</option>
-            {documents.map((doc) => (
-              <option key={doc.doc_id} value={doc.doc_id}>
-                {doc.title} {doc.version_label ? `(${doc.version_label})` : ''}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="form-group">
           <label className="form-label">
-            3 · Trích dẫn <RequiredMark />
-          </label>
-          <div className="form-hint" style={{ marginBottom: 8 }}>
-            Tick chọn ít nhất 1 đoạn làm trích dẫn <b>Bắt buộc</b> (căn cứ chính cho câu trả lời);
-            các đoạn tham khảo thêm chọn loại <b>Bổ trợ</b>.
-          </div>
-          <ChunkSelector
-            selectedDocId={form.selectedDocId}
-            selectedChunks={form.selectedChunks}
-            onChange={(chunks) => update('selectedChunks', chunks)}
-          />
-          <FieldError message={fieldErrors.citations} />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">
-            4 · Câu trả lời chuẩn <RequiredMark />
+            3 · Câu trả lời chuẩn <RequiredMark />
           </label>
           <div className="form-hint" style={{ marginBottom: 8 }}>
             Điền đủ 4 phần theo cấu trúc, mỗi phần {MIN_WORDS}–{MAX_WORDS} từ.

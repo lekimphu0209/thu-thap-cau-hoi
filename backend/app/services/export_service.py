@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.qa_citation import QaCitation
 from app.models.qa_entry import QaEntry
 from app.models.taxonomy import QuestionSubgroup
 from app.models.user import User
@@ -74,6 +75,12 @@ class ExportService:
         stmt = select(QaEntry).options(
             selectinload(QaEntry.doctor),
             selectinload(QaEntry.subgroup).selectinload(QuestionSubgroup.group),
+            selectinload(QaEntry.citations)
+            .selectinload(QaCitation.texts),
+            selectinload(QaEntry.citations)
+            .selectinload(QaCitation.document),
+            selectinload(QaEntry.citations)
+            .selectinload(QaCitation.section),
         )
         if filters.doctor_id is not None:
             stmt = stmt.where(QaEntry.doctor_id == filters.doctor_id)
@@ -138,10 +145,9 @@ class ExportService:
         supporting = []
         for citation in entry.citations:
             item = {
-                "chunk_id": citation.chunk_id,
-                "doc_title": citation.chunk.doc_title if citation.chunk else citation.manual_doc_name,
-                "section_heading": citation.chunk.section_heading if citation.chunk else citation.manual_location,
-                "text_abstract": citation.chunk.text_abstract if citation.chunk else None,
+                "doc_title": citation.document.title if citation.document else None,
+                "section_path": citation.section.section_path if citation.section else None,
+                "texts": [text.content for text in citation.texts],
             }
             (required if citation.citation_type == "REQUIRED" else supporting).append(item)
 

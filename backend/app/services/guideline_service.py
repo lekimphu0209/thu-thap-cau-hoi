@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models.corpus import GuidelineChunk, GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 
 
 class GuidelineService:
@@ -43,6 +44,62 @@ class GuidelineService:
         if doc is None:
             raise NotFoundError(f"Không tìm thấy guideline document id={doc_id}.")
         return doc
+
+    async def list_sections(
+        self,
+        *,
+        doc_id: int,
+        search: str | None = None,
+        limit: int = 200,
+    ) -> list[GuidelineSection]:
+        doc = await self.get_document(doc_id)
+
+        # Section thuộc về version_id của document, không phải doc_id trung gian
+        filters = [GuidelineSection.doc_id == doc.doc_id]
+        if doc.external_version_id is not None:
+            filters.append(GuidelineSection.external_version_id == doc.external_version_id)
+        stmt = select(GuidelineSection).where(or_(*filters))
+        if search:
+            pattern = f"%{search.strip()}%"
+            content_headings = (
+                select(GuidelineChunk.section_heading)
+                .where(GuidelineChunk.doc_id == doc_id)
+                .where(
+                    or_(
+                        GuidelineChunk.text.ilike(pattern),
+                        GuidelineChunk.text_abstract.ilike(pattern),
+                    )
+                )
+                .distinct()
+            ).subquery()
+            stmt = stmt.where(
+                or_(
+                    GuidelineSection.heading.ilike(pattern),
+                    GuidelineSection.section_path.ilike(pattern),
+                    GuidelineSection.heading.in_(content_headings),
+                )
+            )
+        stmt = stmt.order_by(GuidelineSection.order_index, GuidelineSection.section_id).limit(limit)
+        sections = list((await self.db.execute(stmt)).scalars().all())
+
+        headings = [s.heading for s in sections if s.heading]
+        if headings:
+            chunk_stmt = (
+                select(GuidelineChunk.section_heading, GuidelineChunk.text_abstract)
+                .where(GuidelineChunk.doc_id == doc_id)
+                .where(GuidelineChunk.section_heading.in_(headings))
+                .order_by(GuidelineChunk.section_heading, GuidelineChunk.chunk_id)
+            )
+            chunk_rows = (await self.db.execute(chunk_stmt)).all()
+            chunk_map: dict[str | None, str | None] = {}
+            for row in chunk_rows:
+                h, abstract = row
+                if h is not None and h not in chunk_map:
+                    chunk_map[h] = abstract
+            for section in sections:
+                section.text_abstract = chunk_map.get(section.heading)
+
+        return sections
 
     async def list_chunks(
         self,

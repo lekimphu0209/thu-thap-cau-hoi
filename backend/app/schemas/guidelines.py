@@ -27,5 +27,16 @@ class GuidelineChunkOut(BaseModel):
     text_abstract: str | None
 
 
+class GuidelineSectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    section_id: int
+    doc_id: int
+    heading: str | None
+    section_path: str | None
+    order_index: int | None
+    text_abstract: str | None
+
+
 class SyncTriggerOut(BaseModel):
     status: str

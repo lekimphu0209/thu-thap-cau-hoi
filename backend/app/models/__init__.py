@@ -1,7 +1,9 @@
 from app.models.base import Base
 from app.models.corpus import GuidelineChunk, GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 from app.models.lookup import ExpectedBehaviorOption, ReviewStatusOption
 from app.models.qa_citation import QaCitation
+from app.models.qa_citation_text import QaCitationText
 from app.models.qa_entry import QaEntry
 from app.models.required_answer_point import RequiredAnswerPoint
 from app.models.survey import DoctorSurvey
@@ -20,8 +22,10 @@ __all__ = [
     "ReviewStatusOption",
     "GuidelineDocument",
     "GuidelineChunk",
+    "GuidelineSection",
     "QaEntry",
     "QaCitation",
+    "QaCitationText",
     "RequiredAnswerPoint",
     "SyncLog",
     "SyncWatermark",

@@ -18,17 +18,14 @@ export default function SlotList({ entries, targetCount, onEdit, onDelete }: Slo
     return citations.map((citation) => (
       <div key={citation.citation_id} style={{ marginBottom: 8 }}>
         <div style={{ fontWeight: 500, fontSize: 12.5 }}>
-          {citation.chunk?.section_heading || citation.manual_location || '—'}
+          {citation.document_title || '—'} · {citation.section_path || '—'}
         </div>
-        {citation.chunk && (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {citation.chunk.text_abstract || citation.chunk.text}
-          </div>
-        )}
-        {citation.manual_doc_name && !citation.chunk && (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {citation.manual_doc_name} · {citation.manual_location}
-          </div>
+        {citation.texts.length > 0 && (
+          <ul style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0', paddingLeft: 16 }}>
+            {citation.texts.map((text) => (
+              <li key={text.citation_text_id}>{text.content}</li>
+            ))}
+          </ul>
         )}
       </div>
     ))

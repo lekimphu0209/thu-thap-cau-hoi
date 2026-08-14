@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
-from app.models.corpus import GuidelineChunk
+from app.models.corpus import GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 from app.models.qa_citation import QaCitation
+from app.models.qa_citation_text import QaCitationText
 from app.models.qa_entry import QaEntry
 from app.models.required_answer_point import RequiredAnswerPoint
 from app.models.taxonomy import QuestionSubgroup
@@ -21,6 +23,15 @@ class QaEntryService:
         stmt = (
             select(QaEntry)
             .where(QaEntry.doctor_id == doctor_id, QaEntry.subgroup_id == subgroup_id)
+            .options(
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.texts),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.document),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.section),
+                selectinload(QaEntry.required_answer_points),
+            )
             .order_by(QaEntry.slot_index)
         )
         return list((await self.db.execute(stmt)).scalars().unique().all())
@@ -29,6 +40,15 @@ class QaEntryService:
         stmt = (
             select(QaEntry)
             .where(QaEntry.doctor_id == doctor_id)
+            .options(
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.texts),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.document),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.section),
+                selectinload(QaEntry.required_answer_points),
+            )
             .order_by(QaEntry.subgroup_id, QaEntry.slot_index)
         )
         return list((await self.db.execute(stmt)).scalars().unique().all())
@@ -139,27 +159,71 @@ class QaEntryService:
             .where(QaEntry.entry_id == entry_id)
             .options(
                 selectinload(QaEntry.citations)
-                .selectinload(QaCitation.chunk)
-                .selectinload(GuidelineChunk.document),
+                .selectinload(QaCitation.texts),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.document),
+                selectinload(QaEntry.citations)
+                .selectinload(QaCitation.section),
                 selectinload(QaEntry.required_answer_points),
             )
             .execution_options(populate_existing=True)
         )
         return (await self.db.execute(stmt)).scalar_one()
 
-    @staticmethod
-    def _validate_citations(citations: list[CitationIn]) -> None:
-        required = [item for item in citations if item.citation_type == "REQUIRED"]
-        if not required:
+    async def _validate_citations(self, citations: list[CitationIn]) -> None:
+        if not any(item.citation_type == "REQUIRED" for item in citations):
             raise BadRequestError("Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED).")
-        for citation in required:
-            has_source = citation.chunk_id is not None or bool(
-                (citation.manual_doc_name or "").strip() and (citation.manual_location or "").strip()
+
+        for citation in citations:
+            if not citation.texts or not any((t.content or "").strip() for t in citation.texts):
+                raise BadRequestError("Mỗi trích dẫn cần có ít nhất 1 đoạn nội dung không rỗng.")
+
+        doc_ids = {c.guideline_document_id for c in citations}
+        section_ids = [c.guideline_section_id for c in citations]
+
+        if section_ids:
+            sections_result = await self.db.execute(
+                select(
+                    GuidelineSection.section_id,
+                    GuidelineSection.doc_id,
+                    GuidelineSection.external_version_id,
+                ).where(GuidelineSection.section_id.in_(section_ids))
             )
-            if not has_source:
-                raise BadRequestError(
-                    "Mỗi trích dẫn bắt buộc cần chọn đoạn guideline hoặc nhập tên tài liệu + mục."
+            section_map = {
+                row.section_id: (row.doc_id, row.external_version_id)
+                for row in sections_result.mappings().all()
+            }
+
+            docs_result = await self.db.execute(
+                select(GuidelineDocument.doc_id, GuidelineDocument.external_version_id).where(
+                    GuidelineDocument.doc_id.in_(doc_ids)
                 )
+            )
+            doc_versions = {
+                row.doc_id: row.external_version_id for row in docs_result.mappings().all()
+            }
+
+            for citation in citations:
+                section = section_map.get(citation.guideline_section_id)
+                if section is None:
+                    raise BadRequestError(
+                        f"Section id={citation.guideline_section_id} không tồn tại."
+                    )
+
+                section_doc_id, section_version_id = section
+                doc_version_id = doc_versions.get(citation.guideline_document_id)
+
+                if not (
+                    section_doc_id == citation.guideline_document_id
+                    or (
+                        section_version_id is not None
+                        and doc_version_id is not None
+                        and section_version_id == doc_version_id
+                    )
+                ):
+                    raise BadRequestError(
+                        f"Section id={citation.guideline_section_id} không thuộc document id={citation.guideline_document_id}."
+                    )
 
     @staticmethod
     def _has_duplicate_query(existing: list[QaEntry], query: str) -> bool:
@@ -178,16 +242,17 @@ class QaEntryService:
     @staticmethod
     def _attach_citations(entry: QaEntry, citations: list[CitationIn]) -> None:
         for order_index, citation_data in enumerate(citations):
-            has_content = citation_data.chunk_id is not None or bool(
-                (citation_data.manual_doc_name or "").strip()
-            )
-            if not has_content:
-                continue
             citation = QaCitation(
                 citation_type=citation_data.citation_type,
-                chunk_id=citation_data.chunk_id,
-                manual_doc_name=(citation_data.manual_doc_name or "").strip() or None,
-                manual_location=(citation_data.manual_location or "").strip() or None,
+                doc_id=citation_data.guideline_document_id,
+                section_id=citation_data.guideline_section_id,
                 order_index=order_index,
             )
+            for text_order, text_data in enumerate(citation_data.texts):
+                content = (text_data.content or "").strip()
+                if not content:
+                    continue
+                citation.texts.append(
+                    QaCitationText(content=content, order_index=text_order)
+                )
             entry.citations.append(citation)

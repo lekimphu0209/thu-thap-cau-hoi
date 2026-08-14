@@ -77,11 +77,22 @@ export interface UpdateSubgroupRequest {
 
 export type CitationType = 'REQUIRED' | 'SUPPORTING'
 
+export interface CitationTextInput {
+  content: string
+}
+
+export interface CitationTextOutput {
+  citation_text_id: number
+  citation_id: number
+  content: string
+  order_index: number
+}
+
 export interface CitationInput {
   citation_type: CitationType
-  chunk_id: number | null
-  manual_doc_name: string | null
-  manual_location: string | null
+  guideline_document_id: number
+  guideline_section_id: number
+  texts: CitationTextInput[]
 }
 
 export type CitationDraft = CitationInput
@@ -89,10 +100,12 @@ export type CitationDraft = CitationInput
 export interface CitationOutput {
   citation_id: number
   citation_type: CitationType
-  chunk_id: number | null
-  chunk: GuidelineChunk | null
-  manual_doc_name: string | null
-  manual_location: string | null
+  guideline_document_id: number
+  guideline_section_id: number
+  document_title: string | null
+  section_path: string | null
+  texts: CitationTextOutput[]
+  order_index: number
 }
 
 export interface RequiredAnswerPointInput {
@@ -156,6 +169,15 @@ export interface GuidelineDocument {
   version_label: string | null
   status: string | null
   release_date: string | null
+}
+
+export interface GuidelineSection {
+  section_id: number
+  doc_id: number
+  heading: string | null
+  section_path: string | null
+  order_index: number | null
+  text_abstract: string | null
 }
 
 export interface GuidelineChunk {

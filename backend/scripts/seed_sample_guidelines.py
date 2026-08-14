@@ -8,7 +8,8 @@ import sqlalchemy as sa
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.database import SessionLocal
-from app.models.corpus import GuidelineChunk, GuidelineDocument
+from app.models.corpus import GuidelineDocument
+from app.models.guideline_section import GuidelineSection
 
 
 SAMPLE_DOC = {
@@ -26,24 +27,24 @@ SAMPLE_DOC = {
     "source_note": "HD Lao 2020.pdf | /storage/hd-lao-2020.pdf",
 }
 
-SAMPLE_CHUNKS = [
+SAMPLE_SECTIONS = [
     {
-        "external_chunk_id": 101,
-        "section_heading": "Triệu chứng nghi lao",
-        "text": "Ho kéo dài trên 2 tuần là triệu chứng nghi lao quan trọng nhất. Cần kết hợp với sốt nhẹ về chiều, sụt cân, ra mồ hôi đêm và tiền sử tiếp xúc nguồn lây để nâng cao độ nghi ngờ.",
-        "text_abstract": "Ho kéo dài trên 2 tuần là triệu chứng nghi lao quan trọng nhất.",
+        "external_section_id": 1001,
+        "heading": "Triệu chứng nghi lao",
+        "section_path": "Chương 2, Mục 2.1 – Triệu chứng nghi lao",
+        "order_index": 1,
     },
     {
-        "external_chunk_id": 102,
-        "section_heading": "Chẩn đoán xác định",
-        "text": "Chẩn đoán lao cần dựa trên xét nghiệm đờm tìm AFB hoặc Xpert MTB/RIF. Kết quả dương tính trên mẫu đờm hoặc dịch sinh học khác từ tổn thương nghi lao là yếu tố xác định.",
-        "text_abstract": "Chẩn đoán lao cần dựa trên xét nghiệm đờm tìm AFB hoặc Xpert MTB/RIF.",
+        "external_section_id": 1002,
+        "heading": "Chẩn đoán xác định",
+        "section_path": "Chương 3, Mục 3.1 – Chẩn đoán xác định",
+        "order_index": 2,
     },
     {
-        "external_chunk_id": 103,
-        "section_heading": "Điều trị",
-        "text": "Điều trị lao tiêu chuẩn kéo dài 6 tháng với phác đồ 2RHZE/4RH. Bệnh nhân cần tuân thủ nghiêm liệu trình để tránh kháng thuốc.",
-        "text_abstract": "Điều trị lao tiêu chuẩn kéo dài 6 tháng với phác đồ 2RHZE/4RH.",
+        "external_section_id": 1003,
+        "heading": "Điều trị",
+        "section_path": "Chương 4, Mục 4.1 – Điều trị",
+        "order_index": 3,
     },
 ]
 
@@ -65,23 +66,24 @@ async def main() -> None:
         else:
             print(f"Document already exists doc_id={doc.doc_id}")
 
-        for chunk_data in SAMPLE_CHUNKS:
-            existing_chunk = await db.execute(
-                sa.select(GuidelineChunk).where(
-                    GuidelineChunk.external_chunk_id == chunk_data["external_chunk_id"]
+        for section_data in SAMPLE_SECTIONS:
+            existing_section = await db.execute(
+                sa.select(GuidelineSection).where(
+                    GuidelineSection.external_section_id == section_data["external_section_id"]
                 )
             )
-            if existing_chunk.scalar_one_or_none() is None:
+            if existing_section.scalar_one_or_none() is None:
                 db.add(
-                    GuidelineChunk(
+                    GuidelineSection(
                         doc_id=doc.doc_id,
-                        **chunk_data,
+                        external_version_id=SAMPLE_DOC["external_version_id"],
+                        **section_data,
                         synced_at=datetime.now(timezone.utc),
                     )
                 )
-                print(f"  Created chunk external_chunk_id={chunk_data['external_chunk_id']}")
+                print(f"  Created section external_section_id={section_data['external_section_id']}")
             else:
-                print(f"  Chunk external_chunk_id={chunk_data['external_chunk_id']} already exists")
+                print(f"  Section external_section_id={section_data['external_section_id']} already exists")
 
         await db.commit()
         print("Sample guideline data ready.")
