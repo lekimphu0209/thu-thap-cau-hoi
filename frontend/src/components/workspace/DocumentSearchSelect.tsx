@@ -46,7 +46,7 @@ export default function DocumentSearchSelect({
     if (!selectedDocId) return
     const fetchOne = async () => {
       try {
-        const res = await guidelinesApi.searchDocuments({ q: '', limit: 200 })
+        const res = await guidelinesApi.searchDocuments({ q: '', limit: 50 })
         const found = res.data.find((d) => d.doc_id === selectedDocId)
         if (found) {
           setDocuments((prev) => (prev.some((d) => d.doc_id === found.doc_id) ? prev : [...prev, found]))
