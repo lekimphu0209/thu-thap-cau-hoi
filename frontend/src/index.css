@@ -725,6 +725,77 @@ button.citation-preview:hover { border-color: var(--accent); background: var(--a
 .filter-bar .form-select,
 .filter-bar .form-input { max-width: 240px; }
 
+.answer-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+.answer-section {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+.answer-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.answer-section-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.answer-section-desc {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.answer-section-bullets {
+  margin: 8px 0 10px;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.answer-section-bullets li::marker { color: var(--text-muted); }
+.answer-section .form-textarea { background: var(--bg-input); }
+.answer-section-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+.answer-word-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.answer-word-count.ok { color: var(--success); font-weight: 500; }
+
+@media (max-width: 640px) {
+  .answer-sections { padding-left: 10px; }
+  .answer-section { padding: 12px; }
+  .answer-section-foot { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
 .hidden { display: none !important; }
 
 /* ── Doctor survey ───────────────────────────────────────────── */
