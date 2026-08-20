@@ -28,6 +28,14 @@ export interface CreateDoctorRequest {
   password: string
 }
 
+export interface RegisterPayload {
+  email: string
+  full_name: string
+  specialty: string
+  password: string
+  confirm_password: string
+}
+
 export interface UpdateDoctorRequest {
   full_name?: string
   specialty?: string

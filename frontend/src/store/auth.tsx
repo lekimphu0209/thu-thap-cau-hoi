@@ -1,11 +1,12 @@
 import React, { createContext, useCallback, useContext, useState } from 'react'
 import { authApi } from '../api/authApi'
-import type { UserResponse } from '../lib/types'
+import type { RegisterPayload, UserResponse } from '../lib/types'
 
 interface AuthState {
   user: UserResponse | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<UserResponse>
+  register: (data: RegisterPayload) => Promise<UserResponse>
   refreshUser: () => Promise<UserResponse>
   logout: () => void
 }
@@ -29,6 +30,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userData
   }, [])
 
+  const register = useCallback(async (data: RegisterPayload) => {
+    const response = await authApi.register(data)
+    const { access_token, user: userData } = response.data
+    localStorage.setItem('access_token', access_token)
+    localStorage.setItem('user', JSON.stringify(userData))
+    setUser(userData)
+    return userData
+  }, [])
+
   const refreshUser = useCallback(async () => {
     const response = await authApi.me()
     localStorage.setItem('user', JSON.stringify(response.data))
@@ -43,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, refreshUser, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,6 +1,7 @@
-import { Check, X } from 'lucide-react'
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { Check, CloudOff, Loader2, RotateCcw, X } from 'lucide-react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { CitationInput, CitationType, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
+import { useAuth } from '../../store/auth'
 import CitationSection from './CitationSection.tsx'
 import KeyPointsBuilder from './KeyPointsBuilder'
 
@@ -14,6 +15,17 @@ const MIN_WORDS = 20
 const MAX_WORDS = 200
 const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
 const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
+
+const AUTOSAVE_DELAY = 1500
+const DRAFT_VERSION = 1
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+interface DraftData {
+  version: number
+  savedAt: number
+  data: FormState
+}
 
 interface AnswerField {
   label: string
@@ -122,6 +134,77 @@ function formFromEntry(entry: QaEntry): FormState {
   }
 }
 
+function buildDraftKey(userId: number, subgroupId: number, entryId: string | undefined): string {
+  return `qa-draft:${userId}:${subgroupId}:${entryId ?? 'new'}`
+}
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function isValidCitation(value: unknown): value is CitationInput {
+  if (typeof value !== 'object' || value === null) return false
+  const c = value as Partial<CitationInput>
+  return (
+    (c.citation_type === 'REQUIRED' || c.citation_type === 'SUPPORTING') &&
+    typeof c.guideline_document_id === 'number' &&
+    typeof c.guideline_section_id === 'number' &&
+    Array.isArray(c.texts) &&
+    c.texts.every(
+      (t) =>
+        typeof t === 'object' && t !== null && typeof (t as { content?: unknown }).content === 'string',
+    )
+  )
+}
+
+function isFormState(value: unknown): value is FormState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const v = value as Partial<FormState>
+  const stringFields: (keyof FormState)[] = [
+    'role',
+    'diseaseOrTopic',
+    'query',
+    'expectedBehavior',
+    'evidence',
+    'finding',
+    'impression',
+    'conclusion',
+    'safetyNotes',
+    'annotatorName',
+    'reviewStatus',
+    'noteForExpert',
+  ]
+  return (
+    stringFields.every((key) => typeof v[key] === 'string') &&
+    Array.isArray(v.requiredAnswerPoints) &&
+    v.requiredAnswerPoints.every((p) => typeof p === 'string') &&
+    Array.isArray(v.citations) &&
+    v.citations.every(isValidCitation)
+  )
+}
+
+function loadDraftData(key: string): DraftData | null {
+  if (!key) return null
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as DraftData).version === DRAFT_VERSION &&
+      typeof (parsed as DraftData).savedAt === 'number' &&
+      isFormState((parsed as DraftData).data)
+    ) {
+      return parsed as DraftData
+    }
+    localStorage.removeItem(key)
+  } catch {
+    localStorage.removeItem(key)
+  }
+  return null
+}
+
 function countWords(value: string): number {
   return (value.trim().match(/\S+/g) || []).length
 }
@@ -206,28 +289,95 @@ function EntryFormImpl(
   }: EntryFormProps,
   ref: React.Ref<EntryFormHandle>,
 ) {
+  const { user } = useAuth()
   const [form, setForm] = useState<FormState>(() => blankForm(annotatorName, expectedBehaviors, reviewStatuses))
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({})
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [restoredAt, setRestoredAt] = useState<number | null>(null)
+  const dirtyRef = useRef(false)
+
+  const draftKey = user ? buildDraftKey(user.user_id, subgroup.subgroup_id, editingEntry?.entry_id) : ''
 
   useEffect(() => {
+    let initialForm: FormState
     if (editingEntry) {
-      setForm(formFromEntry(editingEntry))
+      initialForm = formFromEntry(editingEntry)
     } else {
-      setForm(blankForm(annotatorName, expectedBehaviors, reviewStatuses))
+      initialForm = blankForm(annotatorName, expectedBehaviors, reviewStatuses)
     }
+
+    if (draftKey) {
+      const draft = loadDraftData(draftKey)
+      if (draft) {
+        const serverTime = editingEntry ? new Date(editingEntry.updated_at).getTime() : 0
+        if (!editingEntry || draft.savedAt > serverTime) {
+          initialForm = draft.data
+          setRestoredAt(draft.savedAt)
+        }
+      }
+    } else {
+      setRestoredAt(null)
+    }
+
+    setForm(initialForm)
     setFieldErrors({})
+    dirtyRef.current = false
+    setSaveState('idle')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingEntry, subgroup.subgroup_id])
+  }, [editingEntry?.entry_id, subgroup.subgroup_id, annotatorName, user?.user_id])
+
+  useEffect(() => {
+    if (!draftKey || !dirtyRef.current) return
+    setSaveState('saving')
+    const timer = setTimeout(() => {
+      try {
+        const draft: DraftData = { version: DRAFT_VERSION, savedAt: Date.now(), data: form }
+        localStorage.setItem(draftKey, JSON.stringify(draft))
+        setLastSavedAt(Date.now())
+        setSaveState('saved')
+      } catch {
+        setSaveState('error')
+      }
+    }, AUTOSAVE_DELAY)
+    return () => clearTimeout(timer)
+  }, [form, draftKey])
+
+  function clearDraft() {
+    if (!draftKey) return
+    try {
+      localStorage.removeItem(draftKey)
+    } catch {
+      // ignore
+    }
+  }
+
+  function resetForm() {
+    const base = editingEntry
+      ? formFromEntry(editingEntry)
+      : blankForm(annotatorName, expectedBehaviors, reviewStatuses)
+    setForm(base)
+    setFieldErrors({})
+    clearDraft()
+    setRestoredAt(null)
+    dirtyRef.current = false
+    setSaveState('idle')
+  }
 
   useImperativeHandle(ref, () => ({
-    fillQuery: (query: string) => setForm((prev) => ({ ...prev, query })),
+    fillQuery: (query: string) => {
+      dirtyRef.current = true
+      setRestoredAt(null)
+      setForm((prev) => ({ ...prev, query }))
+    },
     reset: () => {
-      setForm(blankForm(annotatorName, expectedBehaviors, reviewStatuses))
-      setFieldErrors({})
+      resetForm()
     },
   }))
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    dirtyRef.current = true
+    if (restoredAt) setRestoredAt(null)
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -264,7 +414,14 @@ function EntryFormImpl(
           c.texts.some((t) => t.content.trim().length > 0)
       ),
     }
-    await onSubmit(payload)
+    try {
+      await onSubmit(payload)
+      clearDraft()
+      setRestoredAt(null)
+      setSaveState('idle')
+    } catch {
+      // Parent handles and displays error via errorMessage prop
+    }
   }
 
   const remaining = Math.max(0, subgroup.target_count - subgroup.done_count)
@@ -272,13 +429,43 @@ function EntryFormImpl(
 
   return (
     <div className="card">
-      <div className="entry-form-header">
+      <div className="entry-form-header" style={{ flexWrap: 'wrap', gap: 12 }}>
         <h3>{isEditing ? '✎ Chỉnh sửa câu hỏi' : '➕ Thêm câu hỏi mới'}</h3>
-        {isEditing && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelEdit}>
-            <X size={13} /> Huỷ chỉnh sửa
-          </button>
-        )}
+        <div className="flex items-center gap-3" style={{ marginLeft: 'auto' }}>
+          {saveState === 'saving' && (
+            <span className="form-hint">
+              <Loader2 size={13} className="spin" style={{ display: 'inline', marginRight: 4 }} /> Đang lưu...
+            </span>
+          )}
+          {saveState === 'saved' && lastSavedAt && (
+            <span className="form-hint">
+              <Check size={13} style={{ display: 'inline', marginRight: 4 }} /> Đã lưu tạm lúc {formatTime(lastSavedAt)}
+            </span>
+          )}
+          {saveState === 'error' && (
+            <span className="form-hint" style={{ color: 'var(--error)' }}>
+              <CloudOff size={13} style={{ display: 'inline', marginRight: 4 }} /> Không lưu được nháp
+            </span>
+          )}
+          {restoredAt && (
+            <span className="form-hint draft-restored">
+              Đã khôi phục bản nháp lúc {formatTime(restoredAt)}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={resetForm}
+                style={{ marginLeft: 8 }}
+              >
+                <RotateCcw size={13} /> Xoá nháp
+              </button>
+            </span>
+          )}
+          {isEditing && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelEdit}>
+              <X size={13} /> Huỷ chỉnh sửa
+            </button>
+          )}
+        </div>
       </div>
 
       {errorMessage && (

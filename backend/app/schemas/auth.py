@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 
 
 class UserResponse(BaseModel):
@@ -33,6 +33,43 @@ class CreateDoctorRequest(BaseModel):
     full_name: str
     specialty: str
     password: str
+
+
+class RegisterDoctorRequest(BaseModel):
+    email: EmailStr
+    full_name: str
+    specialty: str
+    password: str
+    confirm_password: str
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_not_empty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Họ tên không được để trống")
+        return stripped
+
+    @field_validator("specialty")
+    @classmethod
+    def specialty_not_empty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Chuyên khoa không được để trống")
+        return stripped
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Mật khẩu phải có ít nhất 8 ký tự")
+        return value
+
+    @model_validator(mode="after")
+    def check_passwords_match(self) -> "RegisterDoctorRequest":
+        if self.password != self.confirm_password:
+            raise ValueError("Mật khẩu xác nhận không khớp")
+        return self
 
 
 class UpdateDoctorRequest(BaseModel):
