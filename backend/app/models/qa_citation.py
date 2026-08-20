@@ -48,6 +48,15 @@ class QaCitation(Base):
     section: Mapped["GuidelineSection"] = relationship(
         "GuidelineSection", lazy="selectin"
     )
+
+    @property
+    def document_title(self) -> str | None:
+        return self.document.title if self.document is not None else None
+
+    @property
+    def section_path(self) -> str | None:
+        return self.section.section_path if self.section is not None else None
+
     texts: Mapped[list["QaCitationText"]] = relationship(
         "QaCitationText",
         back_populates="citation",

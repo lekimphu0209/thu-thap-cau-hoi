@@ -178,21 +178,49 @@ class QaEntryService:
             if not citation.texts or not any((t.content or "").strip() for t in citation.texts):
                 raise BadRequestError("Mỗi trích dẫn cần có ít nhất 1 đoạn nội dung không rỗng.")
 
+        doc_ids = {c.guideline_document_id for c in citations}
         section_ids = [c.guideline_section_id for c in citations]
+
         if section_ids:
-            result = await self.db.execute(
-                select(GuidelineSection.section_id, GuidelineSection.doc_id).where(
-                    GuidelineSection.section_id.in_(section_ids)
+            sections_result = await self.db.execute(
+                select(
+                    GuidelineSection.section_id,
+                    GuidelineSection.doc_id,
+                    GuidelineSection.external_version_id,
+                ).where(GuidelineSection.section_id.in_(section_ids))
+            )
+            section_map = {
+                row.section_id: (row.doc_id, row.external_version_id)
+                for row in sections_result.mappings().all()
+            }
+
+            docs_result = await self.db.execute(
+                select(GuidelineDocument.doc_id, GuidelineDocument.external_version_id).where(
+                    GuidelineDocument.doc_id.in_(doc_ids)
                 )
             )
-            section_map = {row.section_id: row.doc_id for row in result.mappings().all()}
+            doc_versions = {
+                row.doc_id: row.external_version_id for row in docs_result.mappings().all()
+            }
+
             for citation in citations:
-                expected_doc = section_map.get(citation.guideline_section_id)
-                if expected_doc is None:
+                section = section_map.get(citation.guideline_section_id)
+                if section is None:
                     raise BadRequestError(
                         f"Section id={citation.guideline_section_id} không tồn tại."
                     )
-                if expected_doc != citation.guideline_document_id:
+
+                section_doc_id, section_version_id = section
+                doc_version_id = doc_versions.get(citation.guideline_document_id)
+
+                if not (
+                    section_doc_id == citation.guideline_document_id
+                    or (
+                        section_version_id is not None
+                        and doc_version_id is not None
+                        and section_version_id == doc_version_id
+                    )
+                ):
                     raise BadRequestError(
                         f"Section id={citation.guideline_section_id} không thuộc document id={citation.guideline_document_id}."
                     )

@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import type { CitationTextInput } from '../../lib/types'
 
 interface CitationTextListProps {
@@ -16,38 +17,33 @@ export default function CitationTextList({ texts, onChange }: CitationTextListPr
   }
 
   const removeText = (index: number) => {
-    if (texts.length <= 1) return
     const next = texts.filter((_, i) => i !== index)
-    onChange(next)
+    onChange(next.length ? next : [{ content: '' }])
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="citation-text-list">
       {texts.map((text, index) => (
-        <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <div key={index} className="citation-text-row">
           <textarea
             className="form-textarea"
             rows={2}
-            placeholder="Nhập đoạn trích dẫn từ tài liệu..."
+            placeholder="Một ý cụ thể, VD: THA khi HA tâm thu ≥140 mmHg"
             value={text.content}
             onChange={(e) => updateText(index, e.target.value)}
-            style={{ flex: 1, minHeight: 48 }}
           />
-          {texts.length > 1 && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              style={{ marginTop: 4 }}
-              onClick={() => removeText(index)}
-              title="Xóa ý này"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs citation-text-remove"
+            onClick={() => removeText(index)}
+            title="Xóa ý này"
+          >
+            ✕
+          </button>
         </div>
       ))}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={addText}>
-        + Thêm ý
+      <button type="button" className="add-dashed-btn" onClick={addText}>
+        <Plus size={12} /> Thêm ý
       </button>
     </div>
   )

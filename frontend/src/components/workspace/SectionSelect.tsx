@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { guidelinesApi } from '../../api/guidelinesApi'
 import type { GuidelineSection } from '../../lib/types'
+import Combobox from './Combobox.tsx'
 
 interface SectionSelectProps {
   docId: number | null
   selectedSectionId: number | null
   onSelect: (section: GuidelineSection) => void
   onClear: () => void
+  invalid?: boolean
 }
 
 export default function SectionSelect({
@@ -14,30 +16,32 @@ export default function SectionSelect({
   selectedSectionId,
   onSelect,
   onClear,
+  invalid = false,
 }: SectionSelectProps) {
   const [search, setSearch] = useState('')
   const [sections, setSections] = useState<GuidelineSection[]>([])
-  const [selected, setSelected] = useState<GuidelineSection | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    setSelected(null)
     setSections([])
     setSearch('')
+    setError(null)
+  }, [docId])
+
+  useEffect(() => {
     if (!docId) return
 
     const fetchSections = async () => {
       setLoading(true)
+      setError(null)
       try {
         const res = await guidelinesApi.listSections(docId, { search })
         setSections(res.data)
-        if (selectedSectionId) {
-          const found = res.data.find((s) => s.section_id === selectedSectionId)
-          if (found) setSelected(found)
-        }
       } catch {
         setSections([])
+        setError('Không tải được danh sách section. Vui lòng thử lại.')
       } finally {
         setLoading(false)
       }
@@ -49,56 +53,61 @@ export default function SectionSelect({
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current)
     }
-  }, [docId, search, selectedSectionId])
+  }, [docId, search])
 
-  const handleSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const sectionId = Number(event.target.value)
-    const section = sections.find((s) => s.section_id === sectionId)
-    if (section) {
-      setSelected(section)
-      onSelect(section)
-    }
+  const handleSelect = (item: { id: number }) => {
+    const section = sections.find((s) => s.section_id === item.id)
+    if (section) onSelect(section)
   }
 
   const handleClear = () => {
-    setSelected(null)
     setSearch('')
     onClear()
   }
 
-  if (!docId) {
-    return <div className="form-hint">Vui lòng chọn tài liệu trước.</div>
-  }
+  const formatPath = (path: string) =>
+    path
+      .split(/[/>]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' › ')
+
+  const previewFrom = (text: string) =>
+    text.length > 140 ? `${text.slice(0, 140)}…` : text
+
+  const items = sections.map((section) => {
+    const heading = section.heading?.trim()
+    const path = section.section_path?.trim()
+    const label = heading || (path ? formatPath(path) : `Mục ${section.section_id}`)
+    const abstract = section.text_abstract?.trim()
+    const subPath = heading && path && path !== heading ? formatPath(path) : undefined
+    const subLabel = abstract
+      ? previewFrom(abstract)
+      : subPath
+    return {
+      id: section.section_id,
+      label,
+      subLabel,
+    }
+  })
 
   return (
-    <div>
-      <input
-        type="text"
-        className="form-input"
-        placeholder="Tìm mục / section..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginBottom: 8 }}
+    <div style={{ width: '100%' }}>
+      <Combobox
+        value={selectedSectionId}
+        items={items}
+        searchValue={search}
+        onSearchChange={setSearch}
+        onSelect={handleSelect}
+        onClear={handleClear}
+        placeholder="Chọn tài liệu trước"
+        searchPlaceholder="Vị trí (Chương/Mục/Trang)"
+        disabled={!docId}
+        loading={loading}
+        emptyText="Không tìm thấy section phù hợp"
+        invalid={invalid}
       />
-      {selected ? (
-        <div className="selected-item" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span className="badge badge-default" style={{ flex: 1, textAlign: 'left' }}>
-            {selected.section_path || `Mục ${selected.section_id}`}
-          </span>
-          <button type="button" className="btn btn-ghost btn-xs" onClick={handleClear}>
-            Đổi
-          </button>
-        </div>
-      ) : (
-        <select className="form-select" value="" onChange={handleSelect}>
-          <option value="">{loading ? 'Đang tải...' : 'Chọn mục'}</option>
-          {sections.map((section) => (
-            <option key={section.section_id} value={section.section_id}>
-              {section.section_path || `Mục ${section.section_id}`}
-            </option>
-          ))}
-        </select>
-      )}
+      {error && <div className="field-error-text" style={{ marginTop: 6 }}>{error}</div>}
     </div>
   )
 }
