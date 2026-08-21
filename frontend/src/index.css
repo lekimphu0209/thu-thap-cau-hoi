@@ -212,7 +212,28 @@ a:hover {
 .form-input::placeholder,
 .form-textarea::placeholder { color: var(--text-muted); }
 
-.form-select { appearance: none; cursor: pointer; }
+.form-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238c959f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 42px;
+}
+
+select.form-select:not(:disabled):hover {
+  border-color: var(--border-focus);
+}
+
+select.form-select:required:invalid,
+select.form-select option[value=""] {
+  color: var(--text-muted);
+}
+
+select.form-select option {
+  color: var(--text-primary);
+}
 .form-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
 
 .form-hint { font-size: 13px; color: var(--text-muted); }

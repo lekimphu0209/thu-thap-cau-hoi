@@ -1,6 +1,6 @@
 import { AlertCircle, Stethoscope } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { extractErrorMessage } from '../lib/api'
 import { useAuth } from '../store/auth'
 
@@ -86,7 +86,7 @@ export default function LoginPage() {
         </form>
 
         <p className="form-hint mt-4 text-center">
-          Tài khoản do Admin tạo sẵn. Liên hệ Admin nếu bạn chưa có tài khoản.
+          Chưa có tài khoản? <Link to="/signup">Đăng ký ngay</Link>
         </p>
       </div>
     </div>

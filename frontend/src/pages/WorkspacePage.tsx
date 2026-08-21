@@ -17,6 +17,8 @@ import { extractErrorMessage } from '../lib/api'
 import type { QaEntry, QaEntryUpsertRequest, Subgroup } from '../lib/types'
 import { useAuth } from '../store/auth'
 
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
 export default function WorkspacePage() {
   const { user } = useAuth()
   const { groups, loading: taxonomyLoading, refresh: refreshTaxonomy } = useTaxonomy()
@@ -30,6 +32,24 @@ export default function WorkspacePage() {
   const formRef = useRef<EntryFormHandle>(null)
 
   const { entries, refresh: refreshEntries } = useEntries(selectedSubgroup?.subgroup_id ?? null)
+
+  useEffect(() => {
+    const now = Date.now()
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith('qa-draft:')) continue
+      try {
+        const raw = localStorage.getItem(key)
+        if (!raw) continue
+        const parsed = JSON.parse(raw)
+        if (typeof parsed.savedAt === 'number' && now - parsed.savedAt > DRAFT_MAX_AGE_MS) {
+          localStorage.removeItem(key)
+        }
+      } catch {
+        // ignore malformed entries
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!selectedSubgroup && groups.length > 0) {
@@ -68,6 +88,7 @@ export default function WorkspacePage() {
       await Promise.all([refreshEntries(), refreshTaxonomy()])
     } catch (error) {
       setFormError(extractErrorMessage(error, 'Không thể lưu câu hỏi.'))
+      throw error
     } finally {
       setSubmitting(false)
     }

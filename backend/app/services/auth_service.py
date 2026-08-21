@@ -1,8 +1,10 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
+from app.schemas.auth import RegisterDoctorRequest
 
 
 class AuthService:
@@ -45,3 +47,22 @@ class AuthService:
         self.db.add(admin)
         await self.db.flush()
         return admin
+
+    async def register_doctor(self, payload: RegisterDoctorRequest) -> User:
+        email = self.normalize_email(payload.email)
+        existing = await self.get_user_by_email(email)
+        if existing is not None:
+            raise ConflictError("Email đã được sử dụng")
+
+        doctor = User(
+            email=email,
+            full_name=payload.full_name,
+            specialty=payload.specialty,
+            password_hash=get_password_hash(payload.password),
+            role=self.ROLE_DOCTOR,
+            is_active=True,
+        )
+        self.db.add(doctor)
+        await self.db.flush()
+        await self.db.refresh(doctor)
+        return doctor
