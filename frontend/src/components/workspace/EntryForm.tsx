@@ -1,10 +1,12 @@
 import { Check, CloudOff, Loader2, RotateCcw, X } from 'lucide-react'
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { CitationInput, CitationType, LookupOption, QaEntry, QaEntryUpsertRequest, Subgroup } from '../../lib/types'
 import { useAuth } from '../../store/auth'
 import CitationSection from './CitationSection.tsx'
 import { type CitationErrors } from './CitationBlock.tsx'
 import KeyPointsBuilder from './KeyPointsBuilder'
+import SuggestInput from './SuggestInput'
+import TagMultiSelect from './TagMultiSelect'
 
 const ROLE_OPTIONS = [
   { value: 'patient', label: 'Bệnh nhân' },
@@ -14,6 +16,8 @@ const ROLE_OPTIONS = [
 
 const MIN_WORDS = 20
 const MAX_WORDS = 200
+const MAX_SCOPE_ITEMS = 10
+const REQUIRED_SPECIALTY_MESSAGE = 'Chọn ít nhất 1 chuyên khoa liên quan'
 const REQUIRED_FIELD_MESSAGE = 'Thông tin này cần được điền'
 const REQUIRED_CITATION_MESSAGE = 'Cần ít nhất 1 trích dẫn bắt buộc (REQUIRED)'
 
@@ -94,6 +98,7 @@ const ANSWER_FIELDS: AnswerField[] = [
 interface FormState {
   role: string
   diseaseOrTopic: string
+  relatedSpecialties: string[]
   query: string
   expectedBehavior: string
   evidence: string
@@ -108,13 +113,19 @@ interface FormState {
   citations: CitationInput[]
 }
 
-type FormErrorKey = 'query' | 'diseaseOrTopic' | 'annotatorName' | 'citations' | AnswerField['key']
+type FormErrorKey = 'query' | 'diseaseOrTopic' | 'relatedSpecialties' | 'annotatorName' | 'citations' | AnswerField['key']
 type FormErrors = Partial<Record<FormErrorKey, string>> & { citationErrors?: CitationErrors[] }
 
-function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], reviewStatuses: LookupOption[]): FormState {
+function blankForm(
+  annotatorName: string,
+  defaultSpecialty: string | null,
+  expectedBehaviors: LookupOption[],
+  reviewStatuses: LookupOption[],
+): FormState {
   return {
     role: 'patient',
     diseaseOrTopic: '',
+    relatedSpecialties: defaultSpecialty ? [defaultSpecialty] : [],
     query: '',
     expectedBehavior: expectedBehaviors[0]?.value ?? '',
     evidence: '',
@@ -130,7 +141,7 @@ function blankForm(annotatorName: string, expectedBehaviors: LookupOption[], rev
   }
 }
 
-function formFromEntry(entry: QaEntry): FormState {
+function formFromEntry(entry: QaEntry, defaultSpecialty: string | null): FormState {
   const toDraft = (citation: QaEntry['citations'][number]): CitationInput => ({
     citation_type: citation.citation_type as CitationType,
     guideline_document_id: citation.guideline_document_id,
@@ -140,6 +151,11 @@ function formFromEntry(entry: QaEntry): FormState {
   return {
     role: entry.role,
     diseaseOrTopic: entry.disease_or_topic,
+    relatedSpecialties: entry.related_specialties.length
+      ? entry.related_specialties
+      : defaultSpecialty
+        ? [defaultSpecialty]
+        : [],
     query: entry.query,
     expectedBehavior: entry.expected_behavior,
     evidence: entry.evidence,
@@ -199,6 +215,8 @@ function isFormState(value: unknown): value is FormState {
   ]
   return (
     stringFields.every((key) => typeof v[key] === 'string') &&
+    (v.relatedSpecialties === undefined ||
+      (Array.isArray(v.relatedSpecialties) && v.relatedSpecialties.every((p) => typeof p === 'string'))) &&
     Array.isArray(v.requiredAnswerPoints) &&
     v.requiredAnswerPoints.every((p) => typeof p === 'string') &&
     Array.isArray(v.citations) &&
@@ -243,6 +261,7 @@ function validateForm(form: FormState): FormErrors {
   const errors: FormErrors = {}
   if (!form.query.trim()) errors.query = REQUIRED_FIELD_MESSAGE
   if (!form.diseaseOrTopic.trim()) errors.diseaseOrTopic = REQUIRED_FIELD_MESSAGE
+  if (form.relatedSpecialties.length === 0) errors.relatedSpecialties = REQUIRED_SPECIALTY_MESSAGE
   if (!form.annotatorName.trim()) errors.annotatorName = REQUIRED_FIELD_MESSAGE
 
   for (const field of ANSWER_FIELDS) {
@@ -286,6 +305,9 @@ export interface EntryFormHandle {
 interface EntryFormProps {
   subgroup: Subgroup
   annotatorName: string
+  defaultSpecialty: string | null
+  specialties: string[]
+  diseaseCatalog: Record<string, string[]>
   expectedBehaviors: LookupOption[]
   reviewStatuses: LookupOption[]
   editingEntry: QaEntry | null
@@ -318,6 +340,9 @@ function EntryFormImpl(
   {
     subgroup,
     annotatorName,
+    defaultSpecialty,
+    specialties,
+    diseaseCatalog,
     expectedBehaviors,
     reviewStatuses,
     editingEntry,
@@ -329,7 +354,8 @@ function EntryFormImpl(
   ref: React.Ref<EntryFormHandle>,
 ) {
   const { user } = useAuth()
-  const [form, setForm] = useState<FormState>(() => blankForm(annotatorName, expectedBehaviors, reviewStatuses))
+  const buildBlankForm = () => blankForm(annotatorName, defaultSpecialty, expectedBehaviors, reviewStatuses)
+  const [form, setForm] = useState<FormState>(buildBlankForm)
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({})
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
@@ -339,19 +365,14 @@ function EntryFormImpl(
   const draftKey = user ? buildDraftKey(user.user_id, subgroup.subgroup_id, editingEntry?.entry_id) : ''
 
   useEffect(() => {
-    let initialForm: FormState
-    if (editingEntry) {
-      initialForm = formFromEntry(editingEntry)
-    } else {
-      initialForm = blankForm(annotatorName, expectedBehaviors, reviewStatuses)
-    }
+    let initialForm: FormState = editingEntry ? formFromEntry(editingEntry, defaultSpecialty) : buildBlankForm()
 
     if (draftKey) {
       const draft = loadDraftData(draftKey)
       if (draft) {
         const serverTime = editingEntry ? new Date(editingEntry.updated_at).getTime() : 0
         if (!editingEntry || draft.savedAt > serverTime) {
-          initialForm = draft.data
+          initialForm = { ...initialForm, ...draft.data }
           setRestoredAt(draft.savedAt)
         }
       }
@@ -364,7 +385,7 @@ function EntryFormImpl(
     dirtyRef.current = false
     setSaveState('idle')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingEntry?.entry_id, subgroup.subgroup_id, annotatorName, user?.user_id])
+  }, [editingEntry?.entry_id, subgroup.subgroup_id, annotatorName, defaultSpecialty, user?.user_id])
 
   useEffect(() => {
     if (!draftKey || !dirtyRef.current) return
@@ -392,9 +413,7 @@ function EntryFormImpl(
   }
 
   function resetForm() {
-    const base = editingEntry
-      ? formFromEntry(editingEntry)
-      : blankForm(annotatorName, expectedBehaviors, reviewStatuses)
+    const base = editingEntry ? formFromEntry(editingEntry, defaultSpecialty) : buildBlankForm()
     setForm(base)
     setFieldErrors({})
     clearDraft()
@@ -433,6 +452,7 @@ function EntryFormImpl(
       subgroup_id: subgroup.subgroup_id,
       role: form.role,
       disease_or_topic: form.diseaseOrTopic,
+      related_specialties: form.relatedSpecialties,
       query: form.query,
       expected_behavior: form.expectedBehavior,
       evidence: form.evidence.trim(),
@@ -463,6 +483,11 @@ function EntryFormImpl(
     }
   }
 
+  const allDiseases = useMemo(() => [...new Set(Object.values(diseaseCatalog).flat())], [diseaseCatalog])
+  const suggestedDiseases = useMemo(
+    () => [...new Set(form.relatedSpecialties.flatMap((specialty) => diseaseCatalog[specialty] ?? []))],
+    [form.relatedSpecialties, diseaseCatalog],
+  )
   const remaining = Math.max(0, subgroup.target_count - subgroup.done_count)
   const isEditing = editingEntry !== null
 
@@ -528,6 +553,24 @@ function EntryFormImpl(
           <FieldError message={fieldErrors.query} />
         </div>
 
+        <div className="form-group">
+          <label className="form-label">
+            Chuyên khoa liên quan <RequiredMark />
+          </label>
+          <TagMultiSelect
+            value={form.relatedSpecialties}
+            onChange={(selected) => update('relatedSpecialties', selected)}
+            options={specialties}
+            maxItems={MAX_SCOPE_ITEMS}
+            placeholder="Chọn hoặc gõ để tìm chuyên khoa"
+            invalid={Boolean(fieldErrors.relatedSpecialties)}
+          />
+          <FieldError message={fieldErrors.relatedSpecialties} />
+          <div className="form-hint">
+            Chuyên khoa cần để trả lời câu hỏi này; chọn nhiều nếu liên quan nhiều chuyên khoa.
+          </div>
+        </div>
+
         <div className="form-row-2">
           <div className="form-group">
             <label className="form-label">
@@ -545,14 +588,16 @@ function EntryFormImpl(
             <label className="form-label">
               Bệnh / chủ đề <RequiredMark />
             </label>
-            <input
-              type="text"
-              className={`form-input${fieldErrors.diseaseOrTopic ? ' has-error' : ''}`}
+            <SuggestInput
               value={form.diseaseOrTopic}
-              onChange={(event) => update('diseaseOrTopic', event.target.value)}
-              placeholder="VD: Bệnh lao"
+              onChange={(disease) => update('diseaseOrTopic', disease)}
+              suggestions={suggestedDiseases}
+              fallbackSuggestions={allDiseases}
+              placeholder="Tìm hoặc nhập tên bệnh"
+              invalid={Boolean(fieldErrors.diseaseOrTopic)}
             />
             <FieldError message={fieldErrors.diseaseOrTopic} />
+            <div className="form-hint">Danh sách gợi ý theo chuyên khoa đã chọn; có thể nhập bệnh khác.</div>
           </div>
         </div>
 

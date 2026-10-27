@@ -1,6 +1,7 @@
 import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { QaEntry } from '../../lib/types'
+import TagList from './TagList'
 
 interface SlotListProps {
   entries: QaEntry[]
@@ -84,6 +85,9 @@ export default function SlotList({ entries, targetCount, onEdit, onDelete }: Slo
             </div>
             {isOpen && (
               <div className="slot-card-body">
+                <div className="field-label-block">Chuyên khoa liên quan</div>
+                <TagList items={entry.related_specialties} />
+
                 <div className="field-label-block">Trích dẫn bắt buộc ({required.length})</div>
                 <div className="field-value-block">
                   {required.length === 0 ? '—' : renderCitations(required)}

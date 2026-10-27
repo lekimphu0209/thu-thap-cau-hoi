@@ -40,7 +40,7 @@ export default function SearchableSelect({
     return options.filter((option) => option.label.toLowerCase().includes(needle))
   }, [options, query])
 
-  const selected = options.find((option) => option.value === value)
+  const display = options.find((option) => option.value === value)?.label ?? value
 
   return (
     <div className="searchable-select" ref={containerRef}>
@@ -52,7 +52,7 @@ export default function SearchableSelect({
           setQuery('')
         }}
       >
-        <span className={selected ? '' : 'placeholder'}>{selected?.label ?? placeholder}</span>
+        <span className={display ? '' : 'placeholder'}>{display || placeholder}</span>
         <ChevronDown size={15} />
       </button>
 

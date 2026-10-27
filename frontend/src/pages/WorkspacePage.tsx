@@ -22,7 +22,7 @@ const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 export default function WorkspacePage() {
   const { user } = useAuth()
   const { groups, loading: taxonomyLoading, refresh: refreshTaxonomy } = useTaxonomy()
-  const { expectedBehaviors, reviewStatuses } = useLookups()
+  const { expectedBehaviors, reviewStatuses, specialties, diseaseCatalog } = useLookups()
   const { toastMessage, showToast } = useToast()
 
   const [selectedSubgroup, setSelectedSubgroup] = useState<Subgroup | null>(null)
@@ -186,6 +186,9 @@ export default function WorkspacePage() {
                 ref={formRef}
                 subgroup={liveSubgroup}
                 annotatorName={user?.full_name ?? ''}
+                defaultSpecialty={user?.specialty ?? null}
+                specialties={specialties}
+                diseaseCatalog={diseaseCatalog}
                 expectedBehaviors={expectedBehaviors}
                 reviewStatuses={reviewStatuses}
                 editingEntry={editingEntry}

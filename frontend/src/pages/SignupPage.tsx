@@ -2,13 +2,14 @@ import { AlertCircle, Stethoscope, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { extractErrorMessage } from '../lib/api'
-import { SPECIALTY_OPTIONS } from '../lib/specialties'
+import { useSpecialties } from '../hooks/useSpecialties'
 import type { RegisterPayload } from '../lib/types'
 import { useAuth } from '../store/auth'
 
 export default function SignupPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const specialties = useSpecialties()
   const [form, setForm] = useState<RegisterPayload>({
     email: '',
     full_name: '',
@@ -116,7 +117,7 @@ export default function SignupPage() {
               required
             >
               <option value="">— Chọn chuyên khoa —</option>
-              {SPECIALTY_OPTIONS.map((option) => (
+              {specialties.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>

@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { doctorsApi } from '../../api/doctorsApi'
 import { extractErrorMessage } from '../../lib/api'
-import { SPECIALTY_OPTIONS } from '../../lib/specialties'
+import { useSpecialties } from '../../hooks/useSpecialties'
 
 interface AddDoctorFormProps {
   onCreated: (message: string) => void
 }
 
 function blankFields() {
-  return { fullName: '', email: '', specialty: SPECIALTY_OPTIONS[0] as string, password: '' }
+  return { fullName: '', email: '', specialty: '', password: '' }
 }
 
 export default function AddDoctorForm({ onCreated }: AddDoctorFormProps) {
+  const specialties = useSpecialties()
   const [fields, setFields] = useState(blankFields)
+  const specialty = fields.specialty || specialties[0] || ''
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -28,10 +30,10 @@ export default function AddDoctorForm({ onCreated }: AddDoctorFormProps) {
       await doctorsApi.create({
         full_name: fields.fullName,
         email: fields.email,
-        specialty: fields.specialty,
+        specialty,
         password: fields.password,
       })
-      onCreated(`✓ Đã thêm ${fields.fullName} — ${fields.specialty}`)
+      onCreated(`✓ Đã thêm ${fields.fullName} — ${specialty}`)
       setFields(blankFields())
     } catch (err) {
       setError(extractErrorMessage(err, 'Không thể tạo tài khoản bác sĩ.'))
@@ -86,10 +88,10 @@ export default function AddDoctorForm({ onCreated }: AddDoctorFormProps) {
             </label>
             <select
               className="form-select"
-              value={fields.specialty}
+              value={specialty}
               onChange={(event) => update('specialty', event.target.value)}
             >
-              {SPECIALTY_OPTIONS.map((option) => (
+              {specialties.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>

@@ -130,6 +130,7 @@ export interface QaEntryUpsertRequest {
   subgroup_id: number
   role: string
   disease_or_topic: string
+  related_specialties: string[]
   query: string
   expected_behavior: string
   evidence: string
@@ -152,6 +153,7 @@ export interface QaEntry {
   is_extra: boolean
   role: string
   disease_or_topic: string
+  related_specialties: string[]
   query: string
   expected_behavior: string
   evidence: string

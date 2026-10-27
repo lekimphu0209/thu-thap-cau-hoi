@@ -817,6 +817,59 @@ button.citation-preview:hover { border-color: var(--accent); background: var(--a
   .answer-section-foot { flex-direction: column; align-items: flex-start; gap: 4px; }
 }
 
+.tag-field-wrap { position: relative; }
+.tag-field {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  min-height: 46px; padding: 6px 10px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-sm);
+  cursor: text; transition: border-color var(--t), box-shadow var(--t);
+}
+.tag-field:hover { border-color: var(--text-muted); }
+.tag-field.focused { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.2); }
+.tag-field.has-error { border-color: var(--danger); }
+.tag-field.has-error.focused { box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.15); }
+.tag-input {
+  flex: 1 1 120px; min-width: 80px; padding: 4px 2px;
+  border: none; outline: none; background: transparent;
+  font-family: inherit; font-size: 15px; color: var(--text-primary);
+}
+.tag-input::placeholder { color: var(--text-muted); }
+.tag-input:disabled { cursor: not-allowed; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-list-empty { color: var(--text-muted); }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%;
+  padding: 3px 4px 3px 10px; border-radius: 99px;
+  font-size: 13px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere;
+  background: var(--accent-light); color: var(--accent);
+}
+.tag-chip.readonly { padding: 3px 10px; }
+.tag-chip-remove {
+  display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px;
+  border: none; border-radius: 50%; background: transparent; color: inherit;
+  cursor: pointer; opacity: 0.6; transition: opacity var(--t), background var(--t);
+}
+.tag-chip-remove:hover { opacity: 1; background: rgba(31, 35, 40, 0.1); }
+
+.tag-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md); overflow: hidden;
+}
+.tag-options { list-style: none; max-height: 232px; overflow-y: auto; padding: 5px; }
+.tag-option {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: var(--r-sm);
+  font-size: 14px; color: var(--text-primary); cursor: pointer;
+}
+.tag-option.active { background: var(--bg); }
+.tag-option.custom { color: var(--accent); font-weight: 500; }
+.tag-panel-foot { padding: 8px 12px; border-top: 1px solid var(--border); background: var(--bg); font-size: 12.5px; color: var(--text-muted); }
+.tag-empty { padding: 14px; text-align: center; font-size: 13px; color: var(--text-muted); }
+@media (max-width: 640px) {
+  .tag-option { padding: 12px 11px; }
+}
+
 .hidden { display: none !important; }
 
 /* ── Doctor survey ───────────────────────────────────────────── */
