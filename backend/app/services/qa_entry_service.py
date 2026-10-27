@@ -74,7 +74,7 @@ class QaEntryService:
         self, *, doctor_id: int, payload: QaEntryUpsertRequest
     ) -> tuple[QaEntry, bool]:
         self._validate_scope(payload)
-        self._validate_citations(payload.citations)
+        await self._validate_citations(payload.citations)
 
         subgroup = await self.db.get(QuestionSubgroup, payload.subgroup_id)
         if subgroup is None:
@@ -117,7 +117,7 @@ class QaEntryService:
         self, *, entry_id: UUID, doctor_id: int, payload: QaEntryUpsertRequest
     ) -> QaEntry:
         self._validate_scope(payload)
-        self._validate_citations(payload.citations)
+        await self._validate_citations(payload.citations)
         entry = await self.get_owned_entry(entry_id, doctor_id)
 
         entry.role = payload.role
