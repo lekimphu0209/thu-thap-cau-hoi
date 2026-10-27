@@ -19,18 +19,21 @@ from app.seed.survey_definition import (
     OTHER_SUFFIX,
     OTHER_VALUE,
     QUESTIONNAIRE,
+    SPECIALTY_QUESTION_CODE,
 )
 from app.services.auth_service import AuthService
+from app.services.catalog_service import CatalogService
 
 CONSENT_SIGNATURE_CODE = "consent_signature"
 
 
 class SurveyService:
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, catalog: CatalogService) -> None:
         self.db = db
+        self.catalog = catalog
 
-    @staticmethod
-    def get_definition() -> SurveyDefinitionOut:
+    async def get_definition(self) -> SurveyDefinitionOut:
+        specialties = await self.catalog.specialties()
         return SurveyDefinitionOut(
             version=QUESTIONNAIRE.version,
             other_value=OTHER_VALUE,
@@ -49,7 +52,11 @@ class SurveyService:
                             code=question.code,
                             label=question.label,
                             control=question.control,
-                            options=list(question.options),
+                            options=(
+                                specialties
+                                if question.code == SPECIALTY_QUESTION_CODE
+                                else list(question.options)
+                            ),
                             required=question.required,
                             allow_other=question.allow_other,
                             help_text=question.help_text,

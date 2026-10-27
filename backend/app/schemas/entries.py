@@ -1,12 +1,38 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
+
+from app.core.labels import canonical_label
+
+MAX_SCOPE_ITEMS = 10
+MAX_SCOPE_LABEL_LENGTH = 100
 
 
 def _word_count(value: str) -> int:
     return len(re.findall(r"\S+", value))
+
+
+def _normalize_scope_labels(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    labels: list[str] = []
+    for value in values:
+        label = canonical_label(value)
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        if len(label) > MAX_SCOPE_LABEL_LENGTH:
+            raise ValueError(f"mỗi mục tối đa {MAX_SCOPE_LABEL_LENGTH} ký tự")
+        seen.add(key)
+        labels.append(label)
+    if len(labels) > MAX_SCOPE_ITEMS:
+        raise ValueError(f"tối đa {MAX_SCOPE_ITEMS} mục")
+    return labels
+
+
+ScopeLabels = Annotated[list[str], AfterValidator(_normalize_scope_labels)]
 
 
 class CitationTextIn(BaseModel):
@@ -65,6 +91,7 @@ class QaEntryUpsertRequest(BaseModel):
     subgroup_id: int
     role: str
     disease_or_topic: str
+    related_specialties: ScopeLabels = Field(default_factory=list)
     query: str = Field(min_length=1)
     expected_behavior: str
     evidence: str
@@ -99,6 +126,7 @@ class QaEntryResponse(BaseModel):
     is_extra: bool
     role: str
     disease_or_topic: str
+    related_specialties: list[str]
     query: str
     expected_behavior: str
     evidence: str

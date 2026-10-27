@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 OTHER_VALUE = "__other__"
 OTHER_SUFFIX = "__other"
+SPECIALTY_QUESTION_CODE = "primary_specialty"
 
 CONTROL_RADIO = "radio"
 CONTROL_SELECT = "select"
@@ -227,39 +228,9 @@ DEMOGRAPHICS_SECTION = Section(
             options=("Dưới 5 năm", "5 – 10 năm", "11 – 15 năm", "16 – 20 năm", "Trên 20 năm"),
         ),
         Question(
-            code="primary_specialty",
+            code=SPECIALTY_QUESTION_CODE,
             label="Chuyên khoa chính",
             control=CONTROL_SEARCH_SELECT,
-            options=(
-                "Tim mạch",
-                "Nội tiết - Đái tháo đường",
-                "Ung bướu",
-                "Hô hấp",
-                "Truyền nhiễm",
-                "Ký sinh trùng",
-                "HIV/AIDS",
-                "Da liễu",
-                "STDs",
-                "Thận học",
-                "Thần kinh",
-                "Trạm y tế",
-                "Huyết học - Truyền máu",
-                "Nhi khoa",
-                "Sản phụ khoa",
-                "Nhiễm khuẩn học - Vi sinh",
-                "Phục hồi chức năng",
-                "Dược học - Dược lâm sàng",
-                "Dinh dưỡng",
-                "Tâm thần - Nghiện chất",
-                "Y học cổ truyền",
-                "Pháp y",
-                "Nhãn khoa",
-                "Tiết niệu",
-                "Gây mê hồi sức",
-                "Ngoại khoa - Ghép tạng",
-                "Y tế công cộng - Dự phòng",
-                "Cấp cứu - Sơ cứu",
-            ),
             allow_other=True,
         ),
         Question(

@@ -40,6 +40,17 @@ async def run_migrations() -> None:
         await _ensure_sync_log_sections_column(conn)
         await _migrate_structured_answers(conn)
         await _migrate_citations_to_sections(conn)
+        await _ensure_related_specialties_column(conn)
+
+
+async def _ensure_related_specialties_column(conn: AsyncConnection) -> None:
+    if not await _table_exists(conn, "qa_entries"):
+        return
+    await conn.execute(
+        text(
+            "ALTER TABLE qa_entries ADD COLUMN IF NOT EXISTS related_specialties json NOT NULL DEFAULT '[]';"
+        )
+    )
 
 
 async def _ensure_sync_log_sections_column(conn: AsyncConnection) -> None:

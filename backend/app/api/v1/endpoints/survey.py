@@ -20,7 +20,7 @@ EXPORT_BASENAME = "doctor_survey_responses"
 
 @router.get("/definition", response_model=SurveyDefinitionOut, summary="Survey questionnaire")
 async def get_definition(survey_service: SurveyServiceDep, _: ActiveUser) -> SurveyDefinitionOut:
-    return survey_service.get_definition()
+    return await survey_service.get_definition()
 
 
 @router.get("/me", response_model=SurveyOut, summary="My survey")

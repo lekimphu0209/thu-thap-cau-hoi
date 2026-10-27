@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.deps import ActiveUser, AdminUser, TaxonomyServiceDep
+from app.api.deps import ActiveUser, AdminUser, CatalogServiceDep, TaxonomyServiceDep
 from app.schemas.taxonomy import GroupOut, LookupOptionOut, SubgroupOut, UpdateSubgroupRequest
 
 router = APIRouter(tags=["Taxonomy"])
@@ -48,6 +48,20 @@ async def list_review_statuses(
 ) -> list[LookupOptionOut]:
     options = await taxonomy_service.list_review_statuses()
     return [LookupOptionOut.model_validate(option) for option in options]
+
+
+@router.get("/taxonomy/specialties", response_model=list[str], summary="Specialties from guideline library")
+async def list_specialties(catalog_service: CatalogServiceDep) -> list[str]:
+    return await catalog_service.specialties()
+
+
+@router.get(
+    "/taxonomy/disease-catalog",
+    response_model=dict[str, list[str]],
+    summary="Diseases grouped by specialty from guideline library",
+)
+async def get_disease_catalog(catalog_service: CatalogServiceDep, _: ActiveUser) -> dict[str, list[str]]:
+    return await catalog_service.diseases_by_specialty()
 
 
 @router.patch(

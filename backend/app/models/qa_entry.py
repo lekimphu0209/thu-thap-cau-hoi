@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -43,6 +44,9 @@ class QaEntry(Base):
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     disease_or_topic: Mapped[str] = mapped_column(String(500), nullable=False)
+    related_specialties: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
     query: Mapped[str] = mapped_column(Text, nullable=False)
     expected_behavior: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence: Mapped[str] = mapped_column(Text, nullable=False)

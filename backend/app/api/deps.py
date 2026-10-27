@@ -9,6 +9,7 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.admin_overview_service import AdminOverviewService
 from app.services.auth_service import AuthService
+from app.services.catalog_service import CatalogService
 from app.services.doctor_service import DoctorService
 from app.services.export_service import ExportService
 from app.services.guideline_service import GuidelineService
@@ -48,8 +49,12 @@ def get_admin_overview_service(db: DBSession) -> AdminOverviewService:
     return AdminOverviewService(db)
 
 
+def get_catalog_service(db: DBSession) -> CatalogService:
+    return CatalogService(db)
+
+
 def get_survey_service(db: DBSession) -> SurveyService:
-    return SurveyService(db)
+    return SurveyService(db, get_catalog_service(db))
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
@@ -59,6 +64,7 @@ QaEntryServiceDep = Annotated[QaEntryService, Depends(get_qa_entry_service)]
 ExportServiceDep = Annotated[ExportService, Depends(get_export_service)]
 GuidelineServiceDep = Annotated[GuidelineService, Depends(get_guideline_service)]
 AdminOverviewServiceDep = Annotated[AdminOverviewService, Depends(get_admin_overview_service)]
+CatalogServiceDep = Annotated[CatalogService, Depends(get_catalog_service)]
 SurveyServiceDep = Annotated[SurveyService, Depends(get_survey_service)]
 
 

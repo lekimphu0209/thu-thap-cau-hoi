@@ -73,6 +73,7 @@ class QaEntryService:
     async def create_entry(
         self, *, doctor_id: int, payload: QaEntryUpsertRequest
     ) -> tuple[QaEntry, bool]:
+        self._validate_scope(payload)
         self._validate_citations(payload.citations)
 
         subgroup = await self.db.get(QuestionSubgroup, payload.subgroup_id)
@@ -93,6 +94,7 @@ class QaEntryService:
             is_extra=is_extra,
             role=payload.role,
             disease_or_topic=payload.disease_or_topic.strip(),
+            related_specialties=payload.related_specialties,
             query=payload.query.strip(),
             expected_behavior=payload.expected_behavior,
             evidence=payload.evidence.strip(),
@@ -114,11 +116,13 @@ class QaEntryService:
     async def update_entry(
         self, *, entry_id: UUID, doctor_id: int, payload: QaEntryUpsertRequest
     ) -> QaEntry:
+        self._validate_scope(payload)
         self._validate_citations(payload.citations)
         entry = await self.get_owned_entry(entry_id, doctor_id)
 
         entry.role = payload.role
         entry.disease_or_topic = payload.disease_or_topic.strip()
+        entry.related_specialties = payload.related_specialties
         entry.query = payload.query.strip()
         entry.expected_behavior = payload.expected_behavior
         entry.evidence = payload.evidence.strip()
@@ -169,6 +173,11 @@ class QaEntryService:
             .execution_options(populate_existing=True)
         )
         return (await self.db.execute(stmt)).scalar_one()
+
+    @staticmethod
+    def _validate_scope(payload: QaEntryUpsertRequest) -> None:
+        if not payload.related_specialties:
+            raise BadRequestError("Cần chọn ít nhất 1 chuyên khoa liên quan.")
 
     async def _validate_citations(self, citations: list[CitationIn]) -> None:
         if not any(item.citation_type == "REQUIRED" for item in citations):
